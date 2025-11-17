@@ -216,6 +216,7 @@ class AutoMapperProcessor(
                                 "$targetPropName = this.$propName"
                             }
                         }
+
                         propType.isArrayType() -> {
                             val arrayArgType = propType.arguments.firstOrNull()?.type?.resolve()
                                 ?: throw IllegalArgumentException("...")
@@ -236,6 +237,7 @@ class AutoMapperProcessor(
                                 "$targetPropName = this.$propName"
                             }
                         }
+
                         propType.isMapType() -> {
                             val valueType = propType.arguments.getOrNull(1)?.type?.resolve()
                                 ?: throw IllegalArgumentException("...")
@@ -255,6 +257,7 @@ class AutoMapperProcessor(
                                 "$targetPropName = this.$propName"
                             }
                         }
+
                         else -> {
                             val isCustomClass = typeDeclaration is KSClassDeclaration &&
                                     !qualifiedName.isNullOrBlank() &&
@@ -290,13 +293,11 @@ class AutoMapperProcessor(
                 val propType = prop.type.resolve()
                 val typeDecl = propType.declaration
 
-                // تحقق فقط إذا كان نوع الخاصية هو class user-defined (ليس kotlin أو java package)
                 val qualifiedName = (typeDecl as? KSClassDeclaration)?.qualifiedName?.asString()
                 if (qualifiedName != null &&
                     !qualifiedName.startsWith("kotlin.") &&
                     !qualifiedName.startsWith("java.")
                 ) {
-                    // هل الكلاس عليه @AutoMapper؟
                     val autoMapperAnn = typeDecl.annotations.firstOrNull {
                         it.shortName.asString() == "AutoMapper"
                     }
@@ -304,7 +305,6 @@ class AutoMapperProcessor(
                     if (autoMapperAnn == null) {
                         throw IllegalArgumentException("Property '${prop.simpleName.asString()}' type '$qualifiedName' is a nested class without @AutoMapper annotation, required for reverse mapping.")
                     } else {
-                        // تحقق من قيمة reverse في annotation
                         val nestedReverse =
                             autoMapperAnn.arguments.firstOrNull { it.name?.asString() == "reverse" }?.value as? Boolean
                                 ?: false
@@ -314,11 +314,10 @@ class AutoMapperProcessor(
                     }
                 }
             }
-            // iterate over targetProps (we map from target -> source)
+
             targetProps.mapNotNull { targetProp ->
                 val targetPropName = targetProp.simpleName.asString()
 
-                // find source property that maps to this targetProp (consider AutoMapperName on source)
                 val sourceProp = sourceProps.firstOrNull { sp ->
                     val ann =
                         sp.annotations.firstOrNull { it.shortName.asString() == "AutoMapperName" }
@@ -329,27 +328,24 @@ class AutoMapperProcessor(
 
                 val sourcePropName = sourceProp.simpleName.asString()
 
-                // check if this sourceProp had a custom mapper
                 val customMapperAnnotation =
                     sourceProp.annotations.firstOrNull { it.shortName.asString() == "AutoMapperCustom" }
                 val customMapperFuncNameRaw =
                     customMapperAnnotation?.arguments?.firstOrNull()?.value as? String
 
                 if (customMapperFuncNameRaw != null) {
-                    // produce reverse call: try to call targetClass.reverse<Capitalize(funcNameWithoutSuffixMapper)>(...)
                     val withoutSuffix = if (customMapperFuncNameRaw.endsWith("Mapper")) {
                         customMapperFuncNameRaw.removeSuffix("Mapper")
                     } else customMapperFuncNameRaw
                     val reverseFunc =
                         "reverse" + withoutSuffix.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-                    // ensure import for target class if in different package
+
                     if (targetPackage != pkg) {
                         targetClassDecl.qualifiedName?.asString()?.let { importsSet.add(it) }
                     }
-                    // call target's reverse helper (user must provide it in target class or companion)
+
                     "$sourcePropName = $targetName.$reverseFunc(this.$targetPropName)"
                 } else {
-                    // default reverse behaviour — BUT use the same mapper names as forward: base on SOURCE property declaration
                     val sourcePropType = sourceProp.type.resolve()
                     val isNullable = sourcePropType.nullability == Nullability.NULLABLE
                     val typeDecl = sourcePropType.declaration
@@ -364,7 +360,8 @@ class AutoMapperProcessor(
                                     !(argDecl.qualifiedName?.asString()?.startsWith("kotlin.")
                                         ?: true)
                             if (isCustom) {
-                                "$sourcePropName = this.$targetPropName${if (isNullable) "?" else ""}.map { $mapperName.mapReverse(it) }"
+                                // هنا شرط nullable لو true نستخدم ?.map  والا .map
+                                "$sourcePropName = this.$targetPropName${if (isNullable) "?." else "."}map { it.toOriginal() }"
                             } else {
                                 "$sourcePropName = this.$targetPropName"
                             }
@@ -378,7 +375,7 @@ class AutoMapperProcessor(
                                     !(argDecl.qualifiedName?.asString()?.startsWith("kotlin.")
                                         ?: true)
                             if (isCustom) {
-                                "$sourcePropName = this.$targetPropName${if (isNullable) "?" else ""}.map { $mapperName.mapReverse(it) }.toTypedArray()"
+                                "$sourcePropName = this.$targetPropName${if (isNullable) "?." else "."}map { it.toOriginal() }.toTypedArray()"
                             } else {
                                 "$sourcePropName = this.$targetPropName"
                             }
@@ -392,7 +389,7 @@ class AutoMapperProcessor(
                                     !(valDecl.qualifiedName?.asString()?.startsWith("kotlin.")
                                         ?: true)
                             if (isCustom) {
-                                "$sourcePropName = this.$targetPropName${if (isNullable) "?" else ""}.mapValues { $mapperName.mapReverse(it.value) }"
+                                "$sourcePropName = this.$targetPropName${if (isNullable) "?." else "."}mapValues { it.value.toOriginal() }"
                             } else {
                                 "$sourcePropName = this.$targetPropName"
                             }
@@ -404,18 +401,19 @@ class AutoMapperProcessor(
                                     !qualifiedName.startsWith("kotlin.") &&
                                     !qualifiedName.startsWith("java.")
                             if (isCustom) {
-                                // IMPORTANT: use the mapper named after the SOURCE property type (so it matches forward mapper)
-                                "$sourcePropName = ${if (isNullable) "this.$targetPropName?.let { $mapperName.mapReverse(it) }" else "$mapperName.mapReverse(this.$targetPropName)"}"
+                                // هنا شرط nullable لتطبيق ?.toOriginal() أو .toOriginal()
+                                "$sourcePropName = this.$targetPropName${if (isNullable) "?." else "."}toOriginal()"
                             } else {
                                 "$sourcePropName = this.$targetPropName"
                             }
                         }
                     }
                 }
-            }.joinToString()
+            }.joinToString("\n")
         } else {
             ""
         }
+
 
         // build imports string
         val imports = importsSet.sorted().joinToString("\n") { "import $it" }

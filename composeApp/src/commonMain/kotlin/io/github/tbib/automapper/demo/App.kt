@@ -19,6 +19,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import automapper.composeapp.generated.resources.Res
 import automapper.composeapp.generated.resources.compose_multiplatform
+import io.github.tbib.automapper.demo.dto.AddressDto
+import io.github.tbib.automapper.demo.dto.PhoneNumberDto
 import io.github.tbib.automapper.demo.dto.UserDto
 import io.github.tbib.automapper.demo.dto.UserDtoMapper
 import org.jetbrains.compose.resources.painterResource
@@ -38,8 +40,33 @@ fun App() {
         ) {
             Button(onClick = {
                 showContent = !showContent
-                val userModel = UserDtoMapper.map(UserDto(1, "test name"))
-                println("user data: ${userModel.name}")
+                val userModel = UserDtoMapper.map(
+                    UserDto(
+                        id = 1,
+                        name = "test",
+                        address = AddressDto(1, "test"),
+                        emails = listOf("test", "test 2"),
+                        phoneNumbers = listOf(
+                            PhoneNumberDto(
+                                id = 1,
+                                number = "123456789",
+                                cityCode = "123456789",
+                                countryCode = "123456789",
+                                listAnotherNumber = mapOf(
+                                    1 to
+                                            PhoneNumberDto(
+                                                id = 2,
+                                                number = "123456789",
+                                                cityCode = "123456789",
+                                                countryCode = "123456789",
+                                                listAnotherNumber = mapOf()
+                                            )
+                                )
+                            )
+                        )
+                    )
+                )
+                println("user data: ${userModel.phoneNumbers.first().listAnotherNumber.values.first().number}")
 
             }) {
                 Text("Click me!")

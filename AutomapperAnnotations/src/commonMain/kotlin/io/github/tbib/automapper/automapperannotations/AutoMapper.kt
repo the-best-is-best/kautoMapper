@@ -8,3 +8,9 @@ import kotlin.reflect.KClass
 annotation class AutoMapper(
     val to: KClass<*>
 )
+
+@Target(AnnotationTarget.PROPERTY)
+@Retention(AnnotationRetention.SOURCE)
+annotation class AutoMapperName(
+    val to: String
+)

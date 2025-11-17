@@ -8,5 +8,7 @@ data class PhoneNumberDto(
     val id: Long,
     val number: String,
     val cityCode: String,
-    val countryCode: String
+    val countryCode: String,
+    val listAnotherNumber: Map<Int, PhoneNumberDto>
+
 )

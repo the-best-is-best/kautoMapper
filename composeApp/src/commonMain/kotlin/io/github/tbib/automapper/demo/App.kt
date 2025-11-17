@@ -68,10 +68,11 @@ fun App() {
                                 )
                             )
                         ),
-                        joinDate = (Clock.System.now() - (300 * 12).days).toString()
+                        joinDate = (Clock.System.now() - (300 * 12).days)
                     )
                 )
                 println("user data: ${userModel.joinDate}")
+                println("user data reverse ${UserDtoMapper.mapReverse(userModel)}")
 
             }) {
                 Text("Click me!")

@@ -16,9 +16,15 @@ annotation class AutoMapperName(
     val to: String
 )
 
+@Target(AnnotationTarget.PROPERTY)
+@Retention(AnnotationRetention.SOURCE)
+annotation class AutoMapperCustom(
+    val mapperFunction: String
+)
+
 
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.SOURCE)
-annotation class AddOptIns(
+annotation class AutoMapperAddOptIns(
     val value: Array<String>
 )

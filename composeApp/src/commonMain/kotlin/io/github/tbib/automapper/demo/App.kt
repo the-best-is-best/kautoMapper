@@ -25,7 +25,11 @@ import io.github.tbib.automapper.demo.dto.UserDto
 import io.github.tbib.automapper.demo.dto.UserDtoMapper
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
+import kotlin.time.ExperimentalTime
 
+@OptIn(ExperimentalTime::class)
 @Composable
 @Preview
 fun App() {
@@ -63,10 +67,11 @@ fun App() {
                                             )
                                 )
                             )
-                        )
+                        ),
+                        joinDate = (Clock.System.now() - (300 * 12).days).toString()
                     )
                 )
-                println("user data: ${userModel.phoneNumbers.first().listAnotherNumber.values.first().number}")
+                println("user data: ${userModel.joinDate}")
 
             }) {
                 Text("Click me!")

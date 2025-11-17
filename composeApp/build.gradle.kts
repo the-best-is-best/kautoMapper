@@ -44,7 +44,7 @@ kotlin {
 
             implementation(projects.automapperAnnotations)
 
-            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
+            implementation(libs.kotlinx.datetime)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

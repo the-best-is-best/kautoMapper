@@ -203,9 +203,9 @@ class AutoMapperProcessor(
 
                             if (isCustomListItem) {
                                 if (isNullable) {
-                                    "$targetPropName = this.$propName?.map { it.map() }"
+                                    "$targetPropName = this.$propName?.map { it.toSource() }"
                                 } else {
-                                    "$targetPropName = this.$propName.map { it.map() }"
+                                    "$targetPropName = this.$propName.map { it.toSource() }"
                                 }
                             } else {
                                 "$targetPropName = this.$propName"
@@ -223,9 +223,9 @@ class AutoMapperProcessor(
 
                             if (isCustomArrayItem) {
                                 if (isNullable) {
-                                    "$targetPropName = this.$propName?.map { it.map() }?.toTypedArray()"
+                                    "$targetPropName = this.$propName?.map { it.toSource() }?.toTypedArray()"
                                 } else {
-                                    "$targetPropName = this.$propName.map { it.map() }.toTypedArray()"
+                                    "$targetPropName = this.$propName.map { it.toSource() }.toTypedArray()"
                                 }
                             } else {
                                 "$targetPropName = this.$propName"
@@ -242,9 +242,9 @@ class AutoMapperProcessor(
 
                             if (isCustomValue) {
                                 if (isNullable) {
-                                    "$targetPropName = this.$propName?.mapValues { it.value.map() }"
+                                    "$targetPropName = this.$propName?.mapValues { it.value.toSource() }"
                                 } else {
-                                    "$targetPropName = this.$propName.mapValues { it.value.map() }"
+                                    "$targetPropName = this.$propName.mapValues { it.value.toSource() }"
                                 }
                             } else {
                                 "$targetPropName = this.$propName"
@@ -258,9 +258,9 @@ class AutoMapperProcessor(
 
                             if (isCustomClass) {
                                 if (isNullable) {
-                                    "$targetPropName = this.$propName?.map()"
+                                    "$targetPropName = this.$propName?.toSource()"
                                 } else {
-                                    "$targetPropName = this.$propName.map()"
+                                    "$targetPropName = this.$propName.toSource()"
                                 }
                             } else {
                                 "$targetPropName = this.$propName"
@@ -406,7 +406,7 @@ class AutoMapperProcessor(
             }
 
             // Generate forward extension function
-            appendLine("$visibilityModifier fun $sourceName.map(): $targetName {")
+            appendLine("$visibilityModifier fun $sourceName.toSource(): $targetName {")
             appendLine("    return $targetName(")
             forwardLines.forEachIndexed { idx, l ->
                 val comma = if (idx < forwardLines.lastIndex) "," else ""
@@ -418,7 +418,7 @@ class AutoMapperProcessor(
             // Generate reverse extension function (if enabled)
             if (reverseEnabled) {
                 appendLine()
-                appendLine("$visibilityModifier fun $targetName.mapReverse(): $sourceName {")
+                appendLine("$visibilityModifier fun $targetName.toOriginal(): $sourceName {")
                 appendLine("    return $sourceName(")
                 if (reverseLines.isNotEmpty()) {
                     val revLines = reverseLines.lines()

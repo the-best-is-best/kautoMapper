@@ -33,12 +33,14 @@ class AutoMapperProcessor(
         val pkg = sourceClass.packageName.asString()
         val sourceName = sourceClass.simpleName.asString()
 
-        val annotation =
-            sourceClass.annotations.firstOrNull { it.shortName.asString() == "AutoMapper" }
-                ?: throw IllegalArgumentException("Class $sourceName must have @AutoMapper annotation")
+        val autoMapperAnnotation =
+            sourceClass.annotations.first { it.shortName.asString() == "AutoMapper" }
+        val addOptInsAnnotation =
+            sourceClass.annotations.firstOrNull { it.shortName.asString() == "AddOptIns" }
 
+        // قراءة النوع الهدف (to)
         val targetType = try {
-            annotation.arguments.first().value as? KSType
+            autoMapperAnnotation.arguments.first().value as? KSType
                 ?: throw IllegalArgumentException("Invalid 'to' parameter in @AutoMapper on class $sourceName")
         } catch (e: Exception) {
             throw IllegalArgumentException("Failed to read target type in @AutoMapper on class $sourceName: ${e.message}")
@@ -53,7 +55,7 @@ class AutoMapperProcessor(
         val sourceProps = sourceClass.getAllProperties().toList()
         val targetProps = targetClassDecl.getAllProperties().toList()
 
-        // أسماء خصائص المصدر بعد إعادة التسمية
+        // أسماء خصائص المصدر بعد إعادة التسمية (بمراعاة AutoMapperName)
         val sourcePropNames = sourceProps.map { prop ->
             val ann = prop.annotations.firstOrNull { it.shortName.asString() == "AutoMapperName" }
             ann?.arguments?.firstOrNull()?.value as? String ?: prop.simpleName.asString()
@@ -61,7 +63,7 @@ class AutoMapperProcessor(
 
         val targetPropNames = targetProps.map { it.simpleName.asString() }.toSet()
 
-// تجميع جميع الحقول المفقودة دفعة واحدة
+        // تحقق الحقول المفقودة دفعة واحدة
         val missingKeys = mutableListOf<String>()
         targetPropNames.forEach { targetPropName ->
             if (!sourcePropNames.contains(targetPropName)) {
@@ -71,15 +73,12 @@ class AutoMapperProcessor(
         if (missingKeys.isNotEmpty()) {
             throw IllegalArgumentException(
                 "Source class '$sourceName' is missing the following properties required by target class '$targetName': ${
-                    missingKeys.joinToString(
-                        ", "
-                    )
+                    missingKeys.joinToString(", ")
                 }"
             )
         }
 
-
-        // 2. تحقق الحقول الإضافية في المصدر (تحذير فقط)
+        // تحقق الحقول الزائدة في المصدر (تحذير فقط)
         sourcePropNames.forEach { sourcePropName ->
             if (!targetPropNames.contains(sourcePropName)) {
                 logger.warn(
@@ -92,14 +91,38 @@ class AutoMapperProcessor(
 
         val importsSet = mutableSetOf<String>()
 
+        // أضف import الهدف إذا مختلف الحزمة
         if (pkg != targetPackage) {
             targetClassDecl.qualifiedName?.asString()?.let { importsSet.add(it) }
         }
+        // أضف import المصدر لو مختلف الحزمة (عادة نفس الحزمة)
         if (pkg != sourceClass.packageName.asString()) {
             sourceClass.qualifiedName?.asString()?.let { importsSet.add(it) }
         }
 
-        // نستخدم mapNotNull لتجاهل الخصائص في المصدر التي ليست في الهدف
+        // استخراج optIns مع دعم AddOptIns بشكل آمن
+        val optInsFromAutoMapper = extractStringsFromAnnotationValue(
+            autoMapperAnnotation.arguments.find { it.name?.asString() == "optIns" }?.value
+        )
+        val optInsFromAddOptIns = extractStringsFromAnnotationValue(
+            addOptInsAnnotation?.arguments?.firstOrNull()?.value
+        )
+
+        val combinedOptIns = (optInsFromAutoMapper + optInsFromAddOptIns).distinct()
+
+        val optInAnnotations = mutableListOf<String>()
+        combinedOptIns.forEach { annFullName ->
+            if (annFullName.isNotBlank()) {
+                optInAnnotations.add(annFullName.substringAfterLast('.')) // اسم الـ Annotation فقط
+                importsSet.add(annFullName) // أضف import كامل
+            }
+        }
+
+        val optInString = if (optInAnnotations.isNotEmpty()) {
+            "@OptIn(" + optInAnnotations.joinToString(", ") { "$it::class" } + ")"
+        } else ""
+
+        // توليد المابنج لكل خاصية مع دعم أنواع مختلفة (List, Array, Map, Classes, nullable ...)
         val mappings = sourceProps.mapNotNull { prop ->
             val propName = prop.simpleName.asString()
             val autoMapperNameAnnotation =
@@ -110,7 +133,7 @@ class AutoMapperProcessor(
             val targetProp = targetClassDecl.getAllProperties()
                 .firstOrNull { it.simpleName.asString() == targetPropName }
             if (targetProp == null) {
-                // تحذير فقط، ثم تجاهلها من التوليد
+                // تحذير وتجاهل
                 logger.warn(
                     "Property '$targetPropName' in source class '$sourceName' does not exist in target class '$targetName', skipping mapping for this property."
                 )
@@ -124,9 +147,8 @@ class AutoMapperProcessor(
                 val targetPropType = targetProp.type.resolve()
                 val targetNullable = targetPropType.nullability == Nullability.NULLABLE
 
-                // تحقق من التوافق بين nullability للمصدر والهدف
                 checkNullabilityCompatibility(
-                    sourceClass.simpleName.asString(),
+                    sourceName,
                     propName,
                     sourceNullable,
                     targetNullable
@@ -136,10 +158,6 @@ class AutoMapperProcessor(
                 val isNullable = sourceNullable
                 val typeDeclaration = propType.declaration
                 val qualifiedName = typeDeclaration.qualifiedName?.asString()
-
-                fun mapCustomExpression(sourceExpr: String, mapperName: String): String {
-                    return if (isNullable) "$sourceExpr?.let { $mapperName.map(it) }" else "$mapperName.map($sourceExpr)"
-                }
 
                 when {
                     propType.isListType() -> {
@@ -199,12 +217,8 @@ class AutoMapperProcessor(
                     }
 
                     propType.isMapType() -> {
-                        val keyType = propType.arguments.getOrNull(0)?.type?.resolve()
                         val valueType = propType.arguments.getOrNull(1)?.type?.resolve()
-
-                        if (valueType == null) {
-                            throw IllegalArgumentException("Property '$propName' in class $sourceName is Map with unknown value type")
-                        }
+                            ?: throw IllegalArgumentException("Property '$propName' in class $sourceName is Map with unknown value type")
 
                         val valueQualifiedName = valueType.declaration.qualifiedName?.asString()
 
@@ -259,7 +273,7 @@ class AutoMapperProcessor(
                 logger.error(message, sourceClass)
                 throw IllegalStateException(message, e)
             }
-        }.joinToString(",\n            ")
+        }.joinToString()
 
         val imports = importsSet
             .sorted()
@@ -271,22 +285,40 @@ class AutoMapperProcessor(
             mapperName
         )
 
-        val content = """
-        package $pkg
-
-        $imports
-
-        // Auto-generated by AutoMapper KSP
-        object $mapperName {
-            fun map(source: $sourceName): $targetName {
-                return $targetName(
-                    $mappings
-                )
+        val content = buildString {
+            appendLine("package $pkg")
+            appendLine()
+            if (imports.isNotEmpty()) {
+                appendLine(imports)
+                appendLine()
             }
+            appendLine("// Auto-generated by AutoMapper KSP")
+            if (optInString.isNotBlank()) {
+                appendLine(optInString)
+            }
+            appendLine("object $mapperName {")
+            appendLine("    fun map(source: $sourceName): $targetName {")
+            appendLine("        return $targetName(")
+            // لتجنب الفواصل الزائدة: أضف فاصلة فقط بين العناصر
+            val lines = mappings.lines()
+            lines.forEachIndexed { index, line ->
+                val comma = if (index < lines.lastIndex) "," else ""
+                appendLine("            $line$comma")
+            }
+            appendLine("        )")
+            appendLine("    }")
+            appendLine("}")
         }
-    """.trimIndent()
 
         file.write(content.toByteArray())
+    }
+
+    private fun extractStringsFromAnnotationValue(value: Any?): List<String> {
+        return when (value) {
+            is Array<*> -> value.mapNotNull { it?.toString() }
+            is List<*> -> value.mapNotNull { it?.toString() }
+            else -> emptyList()
+        }
     }
 
     private fun KSType.isListType(): Boolean {

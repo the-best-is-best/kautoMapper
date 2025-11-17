@@ -41,16 +41,21 @@ class AutoMapperProcessor(
 
         // نبحث عن أي خاصية تحمل @AutoMapperCustom
         val hasCustomMapping = sourceClass.getAllProperties().any { prop ->
-            prop.annotations.any { it.shortName.asString() == "AutoMapperCustom" }
+            val found = prop.annotations.any { it.shortName.asString() == "AutoMapperCustom" }
+            if (found) {
+                logger.warn("Property ${prop.simpleName.asString()} has @AutoMapperCustom annotation")
+            }
+            found
         }
 
-        // إذا وجدنا كلا الشرطين، نرمي استثناء
+        logger.warn("reverseEnabled = $reverseEnabled, hasCustomMapping = $hasCustomMapping")
+
         if (reverseEnabled && hasCustomMapping) {
             throw IllegalArgumentException(
                 "reverse=true with @AutoMapper does not support properties annotated with @AutoMapperCustom. Please disable reverse or remove @AutoMapperCustom."
             )
-
         }
+
 
         val pkg = "io.github.tbib.automapper"
         val sourceName = sourceClass.simpleName.asString()
@@ -281,6 +286,34 @@ class AutoMapperProcessor(
         // GENERATE REVERSE MAPPING (if requested)
         // -----------------------
         val reverseLines = if (reverseEnabled) {
+            sourceClass.getAllProperties().forEach { prop ->
+                val propType = prop.type.resolve()
+                val typeDecl = propType.declaration
+
+                // تحقق فقط إذا كان نوع الخاصية هو class user-defined (ليس kotlin أو java package)
+                val qualifiedName = (typeDecl as? KSClassDeclaration)?.qualifiedName?.asString()
+                if (qualifiedName != null &&
+                    !qualifiedName.startsWith("kotlin.") &&
+                    !qualifiedName.startsWith("java.")
+                ) {
+                    // هل الكلاس عليه @AutoMapper؟
+                    val autoMapperAnn = typeDecl.annotations.firstOrNull {
+                        it.shortName.asString() == "AutoMapper"
+                    }
+
+                    if (autoMapperAnn == null) {
+                        throw IllegalArgumentException("Property '${prop.simpleName.asString()}' type '$qualifiedName' is a nested class without @AutoMapper annotation, required for reverse mapping.")
+                    } else {
+                        // تحقق من قيمة reverse في annotation
+                        val nestedReverse =
+                            autoMapperAnn.arguments.firstOrNull { it.name?.asString() == "reverse" }?.value as? Boolean
+                                ?: false
+                        if (!nestedReverse) {
+                            throw IllegalArgumentException("Property '${prop.simpleName.asString()}' type '$qualifiedName' must have @AutoMapper(reverse = true) to support reverse mapping in parent class '${sourceClass.simpleName.asString()}'.")
+                        }
+                    }
+                }
+            }
             // iterate over targetProps (we map from target -> source)
             targetProps.mapNotNull { targetProp ->
                 val targetPropName = targetProp.simpleName.asString()

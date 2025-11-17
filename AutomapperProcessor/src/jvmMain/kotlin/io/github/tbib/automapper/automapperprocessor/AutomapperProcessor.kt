@@ -311,8 +311,109 @@ class AutoMapperProcessor(
             }
             appendLine("        )")
             appendLine("    }")
+
+            // =====================
+//   REVERSE MAPPING
+// =====================
+            val reverseEnabled =
+                autoMapperAnnotation.arguments
+                    .find { it.name?.asString() == "reverse" }
+                    ?.value as? Boolean ?: false
+
+            if (reverseEnabled) {
+
+                val reverseMappings = targetProps.mapNotNull { prop ->
+                    val propName = prop.simpleName.asString()
+
+                    val sourceProp = sourceProps.firstOrNull {
+                        val ann =
+                            it.annotations.firstOrNull { a -> a.shortName.asString() == "AutoMapperName" }
+                        val mappedName = ann?.arguments?.firstOrNull()?.value as? String
+                            ?: it.simpleName.asString()
+                        mappedName == propName
+                    } ?: return@mapNotNull null
+
+                    val sourcePropName = sourceProp.simpleName.asString()
+                    val sourcePropType = sourceProp.type.resolve()
+                    val typeDecl = sourcePropType.declaration
+                    val qualifiedName = typeDecl.qualifiedName?.asString()
+
+                    when {
+                        sourcePropType.isListType() -> {
+                            val argType = sourcePropType.arguments.first().type!!.resolve()
+                            val argDecl = argType.declaration
+                            val isCustom = argDecl is KSClassDeclaration &&
+                                    !(argDecl.qualifiedName?.asString()?.startsWith("kotlin.")
+                                        ?: true)
+
+                            if (isCustom) {
+                                val mapperName = "${argDecl.simpleName.asString()}Mapper"
+                                "$sourcePropName = source.$propName.map { $mapperName.mapReverse(it) }"
+                            } else {
+                                "$sourcePropName = source.$propName"
+                            }
+                        }
+
+                        sourcePropType.isArrayType() -> {
+                            val argType = sourcePropType.arguments.first().type!!.resolve()
+                            val argDecl = argType.declaration
+                            val isCustom = argDecl is KSClassDeclaration &&
+                                    !(argDecl.qualifiedName?.asString()?.startsWith("kotlin.")
+                                        ?: true)
+
+                            if (isCustom) {
+                                val mapperName = "${argDecl.simpleName.asString()}Mapper"
+                                "$sourcePropName = source.$propName.map { $mapperName.mapReverse(it) }.toTypedArray()"
+                            } else {
+                                "$sourcePropName = source.$propName"
+                            }
+                        }
+
+                        sourcePropType.isMapType() -> {
+                            val valType = sourcePropType.arguments[1].type!!.resolve()
+                            val valDecl = valType.declaration
+                            val isCustom = valDecl is KSClassDeclaration &&
+                                    !(valDecl.qualifiedName?.asString()?.startsWith("kotlin.")
+                                        ?: true)
+
+                            if (isCustom) {
+                                val mapperName = "${valDecl.simpleName.asString()}Mapper"
+                                "$sourcePropName = source.$propName.mapValues { $mapperName.mapReverse(it.value) }"
+                            } else {
+                                "$sourcePropName = source.$propName"
+                            }
+                        }
+
+                        else -> {
+                            val isCustom = typeDecl is KSClassDeclaration &&
+                                    !qualifiedName.isNullOrBlank() &&
+                                    !qualifiedName.startsWith("kotlin.") &&
+                                    !qualifiedName.startsWith("java.")
+
+                            if (isCustom) {
+                                val mapperName = "${typeDecl.simpleName.asString()}Mapper"
+                                "$sourcePropName = $mapperName.mapReverse(source.$propName)"
+                            } else {
+                                "$sourcePropName = source.$propName"
+                            }
+                        }
+                    }
+                }.joinToString(",")
+
+                appendLine()
+                appendLine("    fun mapReverse(source: $targetName): $sourceName {")
+                appendLine("        return $sourceName(")
+                appendLine("            $reverseMappings")
+                appendLine("        )")
+                appendLine("    }")
+            }
+
             appendLine("}")
+
+
         }
+
+
 
         file.write(content.toByteArray())
     }

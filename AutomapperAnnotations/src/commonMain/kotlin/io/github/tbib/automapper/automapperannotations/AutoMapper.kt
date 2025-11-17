@@ -7,7 +7,9 @@ import kotlin.reflect.KClass
 @Retention(AnnotationRetention.SOURCE)
 annotation class AutoMapper(
     val to: KClass<*>,
-    val optIns: Array<String> = []
+    val optIns: Array<String> = [],
+    val reverse: Boolean = false
+
 )
 
 @Target(AnnotationTarget.PROPERTY)

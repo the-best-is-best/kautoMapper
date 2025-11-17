@@ -8,7 +8,7 @@ import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
-@AutoMapper(to = UserModel::class)
+@AutoMapper(to = UserModel::class, reverse = true)
 @AutoMapperAddOptIns(["kotlin.time.ExperimentalTime"])
 data class UserDto(
     val id: Int,

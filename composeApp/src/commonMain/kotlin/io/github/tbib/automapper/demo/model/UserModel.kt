@@ -10,4 +10,11 @@ data class UserModel @OptIn(ExperimentalTime::class) constructor(
     val address: AddressModel,
     val emails: List<String>,
     val phoneNumbers: List<PhoneNumberModel>
-)
+) {
+    companion object {
+        @OptIn(ExperimentalTime::class)
+        fun reverseJoinDate(joinDate: Instant): String {
+            return joinDate.toString()
+        }
+    }
+}

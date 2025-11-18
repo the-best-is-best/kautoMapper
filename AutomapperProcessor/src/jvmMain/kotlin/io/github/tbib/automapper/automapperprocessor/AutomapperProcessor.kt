@@ -7,6 +7,7 @@ import com.google.devtools.ksp.processing.SymbolProcessorEnvironment
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
+import com.google.devtools.ksp.symbol.KSPropertyDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.Nullability
 import io.github.tbib.automapper.automapperannotations.AutoMapper
@@ -275,21 +276,30 @@ class AutoMapperProcessor(
                                             argDecl.annotations.any { it.shortName.asString() == "AutoMapper" }
                                         }
 
+
+
                                     if (!hasAutoMapper) {
                                         throw IllegalArgumentException("Property '$sourcePropName' generic type '${argDecl.simpleName.asString()}' in class '$sourceName' is missing @AutoMapper annotation")
                                     }
 
+                                    val mapTransform =
+                                        if (hasAutoMapper && !isPrimitiveOrStandardType(argDecl.qualifiedName?.asString())) "it.toSource()" else "it"
 
-                                    if (sourceNullable) {
-                                        if (hasDefaultValue) {
+                                    when {
+                                        sourceNullable && hasDefaultValue -> {
                                             val defaultVal = defaultValuesMap[targetPropName]
-                                            "$targetPropName = this.$sourcePropName?.map { it.toSource() } ?: $defaultVal"
-                                        } else {
-                                            "$targetPropName = this.$sourcePropName?.map { it.toSource() }"
+                                            "$targetPropName = this.$sourcePropName?.map { $mapTransform } ?: $defaultVal"
                                         }
-                                    } else {
-                                        "$targetPropName = this.$sourcePropName.map { it.toSource() }"
+
+                                        sourceNullable -> {
+                                            "$targetPropName = this.$sourcePropName?.map { $mapTransform }"
+                                        }
+
+                                        else -> {
+                                            "$targetPropName = this.$sourcePropName.map { $mapTransform }"
+                                        }
                                     }
+
                                 }
 
                                 sourcePropType.isArrayType() -> {
@@ -611,10 +621,14 @@ class AutoMapperProcessor(
         val standardTypes = setOf(
             "java.lang.String",
             "java.lang.Integer",
-            "java.lang.Boolean"
+            "java.lang.Boolean",
+            "kotlin.String",
+            "kotlin.Int",
+            "kotlin.Boolean",
         )
         return qualifiedName?.startsWith("kotlin.") == true || qualifiedName in standardTypes
     }
+
 
     private fun isSameTypeIgnoringNullability(type1: KSType, type2: KSType): Boolean {
         val decl1 = type1.declaration.qualifiedName?.asString()
@@ -632,4 +646,13 @@ class AutoMapperProcessor(
         return true
     }
 
+    private fun KSClassDeclaration.getConstructorProperties(): List<KSPropertyDeclaration> {
+        val ctorParams = this.primaryConstructor?.parameters ?: return emptyList()
+        val props = this.getAllProperties().toList()
+        return ctorParams.mapNotNull { param ->
+            if (param.isVal || param.isVar) {
+                props.firstOrNull { it.simpleName.asString() == param.name?.asString() }
+            } else null
+        }
+    }
 }

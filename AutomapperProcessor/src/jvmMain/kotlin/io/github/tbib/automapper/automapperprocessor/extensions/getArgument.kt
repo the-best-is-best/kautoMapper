@@ -72,22 +72,44 @@ internal fun KSType.isMap(): Boolean = declaration.qualifiedName?.asString() in 
     "kotlin.collections.MutableMap"
 )
 
+/**
+ * A robust function to deeply compare two KSType objects for equality,
+ * ignoring only the top-level nullability. It compares the qualified name,
+ * number of arguments, and recursively checks each type argument's variance and type.
+ *
+ * @param other The KSType to compare against.
+ * @return `true` if the types are structurally identical (ignoring nullability), otherwise `false`.
+ */
 internal fun KSType.isSameTypeAs(other: KSType): Boolean {
-    // Check if the main declaration is the same
-    if (this.declaration.qualifiedName != other.declaration.qualifiedName) return false
+    // 1. Compare the fully qualified names of the base declarations.
+    if (this.declaration.qualifiedName?.asString() != other.declaration.qualifiedName?.asString()) {
+        return false
+    }
 
-    // Check if the number of generic arguments is the same
-    if (this.arguments.size != other.arguments.size) return false
+    // 2. Ensure they have the same number of generic type arguments.
+    if (this.arguments.size != other.arguments.size) {
+        return false
+    }
 
-    // Recursively check if the generic arguments are the same type
-    return this.arguments.zip(other.arguments).all { (arg1, arg2) ->
-        val type1 = arg1.type?.resolve()
-        val type2 = arg2.type?.resolve()
+    // 3. Recursively compare each type argument.
+    return this.arguments.zip(other.arguments).all { (thisArg, otherArg) ->
+        // Compare variance (in, out, or invariant). They must match.
+        if (thisArg.variance != otherArg.variance) {
+            return@all false
+        }
 
-        if (type1 != null && type2 != null) {
-            type1.isSameTypeAs(type2)
+        val thisArgType = thisArg.type?.resolve()
+        val otherArgType = otherArg.type?.resolve()
+
+        // Handle star projections (*), where the type is null.
+        if (thisArgType == null && otherArgType == null) {
+            true // Both are star projections, so they match.
+        } else if (thisArgType != null && otherArgType != null) {
+            // If both types are resolvable, recurse.
+            thisArgType.isSameTypeAs(otherArgType)
         } else {
-            type1 == null && type2 == null
+            // One is a star projection and the other is not, so they don't match.
+            false
         }
     }
 }

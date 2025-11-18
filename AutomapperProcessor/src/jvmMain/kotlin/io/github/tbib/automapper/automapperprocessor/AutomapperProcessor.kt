@@ -137,10 +137,12 @@ class AutoMapperProcessor(
         val targetPropName = targetProp.simpleName.asString()
         val sourcePropName = sourceProp.simpleName.asString()
         val sourcePropType = sourceProp.type.resolve()
-        val targetPropType = targetProp.type.resolve()
+        val targetPropType = targetProp.type.resolve() // Get target type for comparison
 
-        checkNullability(sourceProp, targetProp, config.defaultValues.containsKey(targetPropName))
+        // Pass the full config object for a more robust nullability check
+        checkNullability(sourceProp, targetProp, config)
 
+        // 1. Handle custom mappers first, as they override all other logic.
         val customMapper = sourceProp.getCustomMapperAnnotation()
         if (customMapper != null) {
             val (annotationName, funcName) = customMapper
@@ -159,64 +161,66 @@ class AutoMapperProcessor(
         val accessPrefix = "this.$sourcePropName"
         val sourcePropClassDecl = sourcePropType.declaration as? KSClassDeclaration
 
-        // --- FIX IS HERE ---
+        // --- NEW, STRICTER LOGIC ---
         return when {
-            // Collection types (List, Array)
+            // 2. Handle Collection types (List, Array, etc.)
             sourcePropType.isList() || sourcePropType.isArray() -> {
                 val argType = sourcePropType.arguments.first().type!!.resolve()
                 val argClassDecl = argType.declaration as? KSClassDeclaration
-                val needsMapping = argClassDecl?.hasAnnotation("AutoMapper") == true
+                val needsItemMapping = argClassDecl?.hasAnnotation("AutoMapper") == true
 
-                // If the item type is a custom class but has no @AutoMapper, throw an exception.
-                if (argClassDecl?.isCustomDataClass() == true && !needsMapping) {
+                // If the list contains a custom class that ISN'T annotated, it's an error.
+                if (argClassDecl?.isCustomDataClass() == true && !needsItemMapping) {
                     throw IllegalArgumentException(
-                        "Property '$sourcePropName' is a collection of '${argClassDecl.simpleName.asString()}', " +
-                                "which is a custom class but is not annotated with @AutoMapper. " +
-                                "Please add the annotation to '${argClassDecl.simpleName.asString()}' or ignore the property."
+                        "Error on property '$sourcePropName': The list contains items of type '${argClassDecl.simpleName.asString()}', " +
+                                "which is a custom class but is not annotated with @AutoMapper. Please annotate it or use a custom mapper."
                     )
                 }
 
-                if (!needsMapping) {
-                    return "$targetPropName = $accessPrefix" // Direct assignment
+                // If no mapping is needed (e.g., List<String>), assign directly.
+                if (!needsItemMapping) {
+                    return "$targetPropName = $accessPrefix"
                 }
 
-                // If mapping is needed, build the transformation string.
+                // Otherwise, build the .map { it.toSource() } transformation.
                 val nullSafeOp = if (sourceNullable) "?." else "."
                 val mapTransform = "map { it.toSource() }"
                 val arraySuffix = if (sourcePropType.isArray()) ".toTypedArray()" else ""
                 "$targetPropName = $accessPrefix$nullSafeOp$mapTransform$arraySuffix"
             }
 
-            // A nested object that has its own @AutoMapper
+            // 3. Handle nested objects that have their own @AutoMapper.
             sourcePropClassDecl?.hasAnnotation("AutoMapper") == true -> {
                 val nullSafeOp = if (sourceNullable) "?." else "."
                 "$targetPropName = $accessPrefix${nullSafeOp}toSource()"
             }
 
-            // A nested object that is a custom class but WITHOUT @AutoMapper
-            sourcePropClassDecl?.isCustomDataClass() == true -> {
-                // If types are the same, direct assignment is safe. Don't throw an error.
-                if (sourcePropType.isSameTypeAs(targetPropType)) {
-                    "$targetPropName = $accessPrefix"
-                } else {
-                    // Only throw an error if the types are different and no mapping strategy is defined.
-                    throw IllegalArgumentException(
-                        "Property '$sourcePropName' of type '${sourcePropClassDecl.simpleName.asString()}' is a custom class " +
-                                "but is not annotated with @AutoMapper. Please add the annotation, use @AutoMapperCustom, or ignore the property."
-                    )
-                }
-            }
-
-            // Primitives, Enums, or simple objects that don't need recursive mapping.
+            // 4. Handle all other types (Primitives, Enums, and by extension, un-annotated custom classes).
             else -> {
-                if (!sourcePropType.isSameTypeAs(targetPropType)) {
-                    logger.warn(
-                        "Type mismatch for property '$sourcePropName'. " +
-                                "Source: ${sourcePropType.declaration.qualifiedName?.asString()}, " +
-                                "Target: ${targetPropType.declaration.qualifiedName?.asString()}. " +
-                                "Direct assignment will be attempted.", sourceProp
+                // If it's a custom class without an annotation, but the types are the same, allow direct assignment.
+                if (sourcePropClassDecl?.isCustomDataClass() == true) {
+                    if (sourcePropType.isSameTypeAs(targetPropType)) {
+                        return "$targetPropName = $accessPrefix"
+                    }
+                    // Otherwise, if it's a custom class with different types, it's an error.
+                    throw IllegalArgumentException(
+                        "Error on property '$sourcePropName': The type '${sourcePropClassDecl.simpleName.asString()}' is a custom class " +
+                                "but is not annotated with @AutoMapper. The processor cannot map it automatically. " +
+                                "Please add @AutoMapper to the class or use @AutoMapperCustom for this property."
                     )
                 }
+
+                // For any other types (primitives, etc.), check if they are identical. If not, throw an error.
+                if (!sourcePropType.isSameTypeAs(targetPropType)) {
+                    throw IllegalArgumentException(
+                        "Type Mismatch for property '$sourcePropName': " +
+                                "Source type is '${sourcePropType.declaration.qualifiedName?.asString()}' but " +
+                                "target type is '${targetPropType.declaration.qualifiedName?.asString()}'.\n" +
+                                "To fix this, use @AutoMapperCustom to provide a manual conversion function."
+                    )
+                }
+
+                // If we are here, the types are the same (e.g., String to String), so direct assignment is safe.
                 "$targetPropName = $accessPrefix"
             }
         }

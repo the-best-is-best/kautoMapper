@@ -128,15 +128,50 @@ internal fun validateNestedReverseSupport(
 internal fun checkNullability(
     sourceProp: KSPropertyDeclaration,
     targetProp: KSPropertyDeclaration,
-    hasDefaultValue: Boolean
+    config: MapperConfig
 ) {
-    val sourceNullable = sourceProp.type.resolve().nullability == Nullability.NULLABLE
-    val targetNullable = targetProp.type.resolve().nullability == Nullability.NULLABLE
-    if (sourceNullable && !targetNullable && !hasDefaultValue) {
+    val sourcePropType = sourceProp.type.resolve()
+    val targetPropType = targetProp.type.resolve()
+
+    val sourceNullable = sourcePropType.nullability == Nullability.NULLABLE
+    val targetNullable = targetPropType.nullability == Nullability.NULLABLE
+
+    // The only dangerous condition is mapping a nullable source to a non-nullable target.
+    val isUnsafeMapping = sourceNullable && !targetNullable
+    if (!isUnsafeMapping) {
+        return // All other combinations are safe.
+    }
+
+    // If the mapping is unsafe, we must check for a fallback mechanism.
+    val targetPropName = targetProp.simpleName.asString()
+    val hasDefaultValue = config.defaultValues.containsKey(targetPropName)
+    val hasCustomMapper =
+        sourceProp.hasAnnotation("AutoMapperCustom") || sourceProp.hasAnnotation("AutoMapperCustomFromParent")
+
+    // A fallback makes the mapping safe.
+    val hasSafeFallback = hasDefaultValue || hasCustomMapper
+
+    if (!hasSafeFallback) {
+        // If there's no fallback, we must throw a clear, actionable error.
         throw IllegalArgumentException(
-            "Nullable property '${sourceProp.simpleName.asString()}' cannot be mapped to non-nullable " +
-                    "property '${targetProp.simpleName.asString()}' without a default value."
+            """
+            Nullability Mismatch on property '${targetPropName}':
+            - Source: '${sourceProp.simpleName.asString()}' in '${config.sourceClass.simpleName.asString()}' is NULLABLE.
+            - Target: '${targetPropName}' in '${config.targetClass.simpleName.asString()}' is NON-NULLABLE.
+            
+            Mapping a nullable type to a non-nullable type can cause a NullPointerException at runtime.
+            
+            How to fix this:
+            1. Make the target property nullable:
+               'val ${targetPropName}: ${targetPropType.declaration.simpleName.asString()}?'
+
+            2. Provide a default value in the @AutoMapper annotation:
+               defaultValues = [DefaultValue(key = "$targetPropName", value = "YourDefaultValue")]
+
+            3. Use @AutoMapperCustom to handle the null case manually.
+
+            4. Make the source property '${sourceProp.simpleName.asString()}' non-nullable.
+            """.trimIndent()
         )
     }
 }
-

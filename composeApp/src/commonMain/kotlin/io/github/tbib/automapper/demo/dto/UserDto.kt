@@ -1,6 +1,5 @@
 package io.github.tbib.automapper.demo.dto
 
-import androidx.compose.runtime.ExperimentalComposeApi
 import io.github.tbib.automapper.automapperannotations.AutoMapper
 import io.github.tbib.automapper.automapperannotations.AutoMapperAddOptIns
 import io.github.tbib.automapper.automapperannotations.AutoMapperCustom
@@ -11,12 +10,12 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 @AutoMapper(to = UserModel::class)
-@AutoMapperAddOptIns(["kotlin.time.ExperimentalTime", "androidx.compose.runtime.ExperimentalComposeApi"])
-data class UserDto @OptIn(ExperimentalComposeApi::class) constructor(
+@AutoMapperAddOptIns(["kotlin.time.ExperimentalTime"])
+data class UserDto @OptIn(ExperimentalTime::class) constructor(
     val id: Int,
     val name: String,
     @AutoMapperCustom("joinDateMapper")
-    val joinDate: String,
+    val joinDate: Instant,
     @AutoMapperName("addres")
     val address: AddressDto,
     val emails: List<String>,
@@ -25,11 +24,11 @@ data class UserDto @OptIn(ExperimentalComposeApi::class) constructor(
     @OptIn(ExperimentalTime::class)
     companion object {
         @OptIn(ExperimentalTime::class)
-        fun joinDateMapper(joinDate: String): Instant {
+        fun joinDateMapper(joinDate: Instant): String {
             return try {
-                Instant.parse(joinDate)
+                joinDate.toString()
             } catch (e: Exception) {
-                Clock.System.now()
+                Clock.System.now().toString()
             }
         }
     }

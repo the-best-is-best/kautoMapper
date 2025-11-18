@@ -207,24 +207,40 @@ class AutoMapperProcessor(
                 if (sourceProp != null) {
                     val sourcePropName = sourceProp.simpleName.asString()
 
-                    val customMapperAnnotation =
-                        sourceProp.annotations.firstOrNull { it.shortName.asString() == "AutoMapperCustom" }
+                    val customMapperAnnotation = sourceProp.annotations.firstOrNull {
+                        val name = it.shortName.asString()
+                        name == "AutoMapperCustom" || name == "AutoMapperCustomFromParent"
+                    }
+
+
+
                     val customMapperFuncNameRaw =
                         customMapperAnnotation?.arguments?.firstOrNull()?.value as? String
 
                     if (customMapperFuncNameRaw != null) {
-                        // If there is a custom mapper function, call it
-                        val customMapperFuncQualified = if (customMapperFuncNameRaw.contains('.')) {
-                            customMapperFuncNameRaw
+                        val annotationName = customMapperAnnotation.shortName.asString()
+
+                        val mapperCall = if (annotationName == "AutoMapperCustomFromParent") {
+                            // الدالة في الكلاس الأب (this) تأخذ الخاصية كوسيط
+                            "$sourceClass.$customMapperFuncNameRaw(this)"
                         } else {
-                            "$sourceName.$customMapperFuncNameRaw"
+                            // الدالة static داخل الكلاس المصدر
+                            val customMapperFuncQualified =
+                                if (customMapperFuncNameRaw.contains('.')) {
+                                    customMapperFuncNameRaw
+                                } else {
+                                    "$sourceName.$customMapperFuncNameRaw"
+                                }
+                            "$customMapperFuncQualified(this.$sourcePropName)"
                         }
+
+                        // أضف import للكلاس المصدر لو لازم
                         val sourceQualifiedName = sourceClass.qualifiedName?.asString()
                         val sourcePackage = sourceClass.packageName.asString()
                         if (sourceQualifiedName != null && sourcePackage != pkg) {
                             importsSet.add(sourceQualifiedName)
                         }
-                        "$targetPropName = $customMapperFuncQualified(this.$sourcePropName)"
+                        "$targetPropName = $mapperCall"
                     } else {
                         try {
                             val sourcePropType = sourceProp.type.resolve()

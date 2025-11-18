@@ -35,6 +35,12 @@ annotation class AutoMapperCustom(
 )
 
 
+@Target(AnnotationTarget.PROPERTY)
+@Retention(AnnotationRetention.SOURCE)
+annotation class AutoMapperCustomFromParent(
+    val mapperFunction: String
+)
+
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.SOURCE)
 annotation class AutoMapperAddOptIns(

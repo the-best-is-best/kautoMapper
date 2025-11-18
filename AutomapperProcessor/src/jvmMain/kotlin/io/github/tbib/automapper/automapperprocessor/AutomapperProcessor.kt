@@ -5,6 +5,7 @@ import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.processing.SymbolProcessor
 import com.google.devtools.ksp.processing.SymbolProcessorEnvironment
 import com.google.devtools.ksp.symbol.KSAnnotated
+import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.Nullability
@@ -19,27 +20,63 @@ class AutoMapperProcessor(
     private val codeGen = env.codeGenerator
 
     override fun process(resolver: Resolver): List<KSAnnotated> {
-        val annotated =
-            resolver.getSymbolsWithAnnotation(AutoMapper::class.qualifiedName!!)
-                .filterIsInstance<KSClassDeclaration>()
+        val annotated = resolver.getSymbolsWithAnnotation(AutoMapper::class.qualifiedName ?: "")
+            .filterIsInstance<KSClassDeclaration>()
 
         annotated.forEach { classDecl ->
-            generateMapperFor(classDecl)
+            try {
+                generateMapperFor(classDecl)
+            } catch (e: Exception) {
+                logger.error(
+                    "Failed to generate mapper for ${classDecl.simpleName.asString()}: ${e.message}",
+                    classDecl
+                )
+                e.printStackTrace()
+                throw e  // تعيد رمي الاستثناء لتتوقف العملية مع ظهور الخطأ الكامل
+            }
         }
 
         return emptyList()
     }
 
     private fun generateMapperFor(sourceClass: KSClassDeclaration) {
-        val visibilityModifier = if (autoMapperVisibility) "public" else "internal"
         val autoMapperAnnotation =
-            sourceClass.annotations.first { it.shortName.asString() == "AutoMapper" }
+            sourceClass.annotations.firstOrNull { it.shortName.asString() == "AutoMapper" }
+                ?: throw IllegalArgumentException("@AutoMapper annotation not found on class ${sourceClass.simpleName.asString()}")
 
-        val reverseEnabled =
-            autoMapperAnnotation.arguments.find { it.name?.asString() == "reverse" }?.value as? Boolean
-                ?: false
+        val forcePublic = autoMapperAnnotation.arguments
+            .firstOrNull { it.name?.asString() == "forcePublic" }
+            ?.value as? Boolean ?: false
 
-        // نبحث عن أي خاصية تحمل @AutoMapperCustom
+        val visibilityModifier = when {
+            forcePublic -> "public"
+            autoMapperVisibility -> "public"
+            else -> "internal"
+        }
+
+        val defaultValuesArg = autoMapperAnnotation.arguments
+            .firstOrNull { it.name?.asString() == "defaultValues" }
+            ?.value as? List<*>
+
+        val defaultValuesMap: Map<String, String> = defaultValuesArg
+            ?.mapNotNull { anno ->
+                val defValAnno = anno as? KSAnnotation
+                val key =
+                    defValAnno?.arguments?.firstOrNull { it.name?.asString() == "key" }?.value as? String
+                val value =
+                    defValAnno?.arguments?.firstOrNull { it.name?.asString() == "value" }?.value?.toString()
+                if (key != null && value != null) key to value else null
+            }
+            ?.toMap() ?: emptyMap()
+
+        val reverseEnabled = autoMapperAnnotation.arguments
+            .firstOrNull { it.name?.asString() == "reverse" }
+            ?.value as? Boolean ?: false
+
+        val ignoreKeys = (autoMapperAnnotation.arguments
+            .firstOrNull { it.name?.asString() == "ignoreKeys" }?.value as? List<String>)
+            ?.toSet() ?: emptySet()
+
         val hasCustomMapping = sourceClass.getAllProperties().any { prop ->
             val found = prop.annotations.any { it.shortName.asString() == "AutoMapperCustom" }
             if (found) {
@@ -48,18 +85,14 @@ class AutoMapperProcessor(
             found
         }
 
-        logger.warn("reverseEnabled = $reverseEnabled, hasCustomMapping = $hasCustomMapping")
-
         if (reverseEnabled && hasCustomMapping) {
             throw IllegalArgumentException(
                 "reverse=true with @AutoMapper does not support properties annotated with @AutoMapperCustom. Please disable reverse or remove @AutoMapperCustom."
             )
         }
 
-
         val pkg = "io.github.tbib.automapper"
         val sourceName = sourceClass.simpleName.asString()
-
 
         val addOptInsAnnotation =
             sourceClass.annotations.firstOrNull { it.shortName.asString() == "AutoMapperAddOptIns" }
@@ -80,7 +113,6 @@ class AutoMapperProcessor(
         val sourceProps = sourceClass.getAllProperties().toList()
         val primaryConstructorValProps = targetClassDecl.getPrimaryConstructorValProperties()
 
-// نأخذ فقط خصائص الهدف اللي موجودة في الـ constructor
         val targetProps = targetClassDecl.getAllProperties()
             .filter { it.simpleName.asString() in primaryConstructorValProps }
             .toList()
@@ -91,17 +123,17 @@ class AutoMapperProcessor(
             ann?.arguments?.firstOrNull()?.value as? String ?: prop.simpleName.asString()
         }.toSet()
 
+        val missingKeys = targetPropNames.filter { it !in sourcePropNames && it !in ignoreKeys }
+        val missingKeysWithoutDefault = missingKeys.filter { it !in defaultValuesMap.keys }
 
-        val missingKeys = targetPropNames.filter { it !in sourcePropNames }
-        if (missingKeys.isNotEmpty()) {
+        if (missingKeysWithoutDefault.isNotEmpty()) {
             throw IllegalArgumentException(
                 "Source class '$sourceName' is missing the following properties required by target class '$targetName': ${
-                    missingKeys.joinToString(", ")
+                    missingKeysWithoutDefault.joinToString(", ")
                 }"
             )
         }
 
-        // تحذير عن خصائص في المصدر غير موجودة في الهدف
         sourcePropNames.filter { it !in targetPropNames }.forEach { propName ->
             logger.warn(
                 "Source property '$propName' in class '$sourceName' does not have a matching property in target class '$targetName'. This property will be ignored."
@@ -111,7 +143,24 @@ class AutoMapperProcessor(
         val mapperName = "${sourceName}Mapper"
         val importsSet = mutableSetOf<String>()
 
-        // إذا الصنف الهدف في package مختلف نضيفه كاستيراد (ممكن يحتاجه المولد)
+        // إضافة imports من defaultValuesMap إذا كانت القيمة تحتوي على اسم كلاس
+        defaultValuesMap.values.forEach { defVal ->
+            val regex = """([A-Za-z_][A-Za-z0-9_]*)\(""".toRegex()
+            val match = regex.find(defVal)
+            if (match != null) {
+                val className = match.groupValues[1]
+                // ابحث في targetClassDecl أو sourceClass عن Declaration بهذا الاسم
+                val classDecl = targetClassDecl.getAllProperties()
+                    .mapNotNull { it.type.resolve().declaration as? KSClassDeclaration }
+                    .firstOrNull { it.simpleName.asString() == className }
+                if (classDecl != null) {
+                    val qualified = classDecl.qualifiedName?.asString()
+                    if (qualified != null) importsSet.add(qualified)
+                }
+            }
+        }
+
+        // إضافة import للـ classes الرئيسية
         if (pkg != targetPackage) {
             targetClassDecl.qualifiedName?.asString()?.let { importsSet.add(it) }
         }
@@ -119,13 +168,10 @@ class AutoMapperProcessor(
             sourceClass.qualifiedName?.asString()?.let { importsSet.add(it) }
         }
 
-        // OptIns
-        val optInsFromAutoMapper =
-            autoMapperAnnotation.arguments.find { it.name?.asString() == "optIns" }?.value as? List<String>
-                ?: emptyList()
+        val optInsFromAutoMapper = autoMapperAnnotation.arguments
+            .firstOrNull { it.name?.asString() == "optIns" }?.value as? List<String> ?: emptyList()
         val optInsFromAddOptIns =
             addOptInsAnnotation?.arguments?.firstOrNull()?.value as? List<String> ?: emptyList()
-
         val combinedOptIns = (optInsFromAutoMapper + optInsFromAddOptIns).distinct()
 
         val optInAnnotations = mutableListOf<String>()
@@ -140,176 +186,177 @@ class AutoMapperProcessor(
             "@OptIn(" + optInAnnotations.joinToString(", ") { "$it::class" } + ")"
         } else ""
 
-        // -----------------------
-        // GENERATE FORWARD MAPPING
-        // -----------------------
-        val forwardLines = sourceProps.mapNotNull { prop ->
-            val propName = prop.simpleName.asString()
-            val autoMapperNameAnnotation =
-                prop.annotations.firstOrNull { it.shortName.asString() == "AutoMapperName" }
-            val targetPropName =
-                autoMapperNameAnnotation?.arguments?.firstOrNull()?.value as? String ?: propName
+        // ======================
+        // توليد forwardLines من خصائص targetProps
+        // ======================
+        val forwardLines = targetProps.map { targetProp ->
+            val targetPropName = targetProp.simpleName.asString()
 
-            val targetProp = targetClassDecl.getAllProperties()
-                .firstOrNull { it.simpleName.asString() == targetPropName }
-            if (targetProp == null) {
-                logger.warn("Property '$targetPropName' in source class '$sourceName' does not exist in target class '$targetName', skipping.")
-                return@mapNotNull null
-            }
-
-            // custom mapper annotation
-            val customMapperAnnotation =
-                prop.annotations.firstOrNull { it.shortName.asString() == "AutoMapperCustom" }
-            val customMapperFuncNameRaw =
-                customMapperAnnotation?.arguments?.firstOrNull()?.value as? String
-
-            val customMapperFuncQualified = customMapperFuncNameRaw?.let { raw ->
-                if (raw.contains('.')) raw else "$sourceName.$raw"
-            }
-
-            if (customMapperFuncQualified != null) {
-                // import source if needed (to allow qualified companion call)
-                val sourceQualifiedName = sourceClass.qualifiedName?.asString()
-                val sourcePackage = sourceClass.packageName.asString()
-                if (sourceQualifiedName != null && sourcePackage != pkg) {
-                    importsSet.add(sourceQualifiedName)
-                }
-                "$targetPropName = $customMapperFuncQualified(this.$propName)"
+            if (targetPropName in ignoreKeys) {
+                // Property is ignored, assign null
+                "$targetPropName = null"
             } else {
-                // default mapping handling (primitive, list, array, map, custom classes)
-                try {
-                    val sourcePropType = prop.type.resolve()
-                    val sourceNullable = sourcePropType.nullability == Nullability.NULLABLE
+                val sourceProp = sourceProps.firstOrNull { sp ->
+                    val ann =
+                        sp.annotations.firstOrNull { it.shortName.asString() == "AutoMapperName" }
+                    val mappedName =
+                        ann?.arguments?.firstOrNull()?.value as? String ?: sp.simpleName.asString()
+                    mappedName == targetPropName
+                }
 
-                    val targetPropType = targetProp.type.resolve()
-                    val targetNullable = targetPropType.nullability == Nullability.NULLABLE
+                if (sourceProp != null) {
+                    val sourcePropName = sourceProp.simpleName.asString()
 
-                    checkNullabilityCompatibility(
-                        sourceName,
-                        propName,
-                        sourceNullable,
-                        targetNullable
-                    )
+                    val customMapperAnnotation =
+                        sourceProp.annotations.firstOrNull { it.shortName.asString() == "AutoMapperCustom" }
+                    val customMapperFuncNameRaw =
+                        customMapperAnnotation?.arguments?.firstOrNull()?.value as? String
 
-                    val propType = sourcePropType
-                    val isNullable = sourceNullable
-                    val typeDeclaration = propType.declaration
-                    val qualifiedName = typeDeclaration.qualifiedName?.asString()
-                    when {
-                        propType.isListType() -> {
-                            val listArgType = propType.arguments.firstOrNull()?.type?.resolve()
-                                ?: throw IllegalArgumentException("...")
-                            val listArgDecl = listArgType.declaration
-                            val listArgQualifiedName = listArgDecl.qualifiedName?.asString()
-                            val isCustomListItem = listArgDecl is KSClassDeclaration &&
-                                    !listArgQualifiedName.isNullOrBlank() &&
-                                    !listArgQualifiedName.startsWith("kotlin.") &&
-                                    !listArgQualifiedName.startsWith("java.")
-
-                            if (isCustomListItem) {
-                                if (isNullable) {
-                                    "$targetPropName = this.$propName?.map { it.toSource() }"
-                                } else {
-                                    "$targetPropName = this.$propName.map { it.toSource() }"
-                                }
-                            } else {
-                                "$targetPropName = this.$propName"
-                            }
+                    if (customMapperFuncNameRaw != null) {
+                        // If there is a custom mapper function, call it
+                        val customMapperFuncQualified = if (customMapperFuncNameRaw.contains('.')) {
+                            customMapperFuncNameRaw
+                        } else {
+                            "$sourceName.$customMapperFuncNameRaw"
                         }
-
-                        propType.isArrayType() -> {
-                            val arrayArgType = propType.arguments.firstOrNull()?.type?.resolve()
-                                ?: throw IllegalArgumentException("...")
-                            val arrayArgDecl = arrayArgType.declaration
-                            val arrayArgQualifiedName = arrayArgDecl.qualifiedName?.asString()
-                            val isCustomArrayItem = arrayArgDecl is KSClassDeclaration &&
-                                    !arrayArgQualifiedName.isNullOrBlank() &&
-                                    !arrayArgQualifiedName.startsWith("kotlin.") &&
-                                    !arrayArgQualifiedName.startsWith("java.")
-
-                            if (isCustomArrayItem) {
-                                if (isNullable) {
-                                    "$targetPropName = this.$propName?.map { it.toSource() }?.toTypedArray()"
-                                } else {
-                                    "$targetPropName = this.$propName.map { it.toSource() }.toTypedArray()"
-                                }
-                            } else {
-                                "$targetPropName = this.$propName"
-                            }
+                        val sourceQualifiedName = sourceClass.qualifiedName?.asString()
+                        val sourcePackage = sourceClass.packageName.asString()
+                        if (sourceQualifiedName != null && sourcePackage != pkg) {
+                            importsSet.add(sourceQualifiedName)
                         }
+                        "$targetPropName = $customMapperFuncQualified(this.$sourcePropName)"
+                    } else {
+                        try {
+                            val sourcePropType = sourceProp.type.resolve()
+                            val sourceNullable = sourcePropType.nullability == Nullability.NULLABLE
 
-                        propType.isMapType() -> {
-                            val valueType = propType.arguments.getOrNull(1)?.type?.resolve()
-                                ?: throw IllegalArgumentException("...")
-                            val valDecl = valueType.declaration
-                            val valQualified = valDecl.qualifiedName?.asString()
-                            val isCustomValue = valDecl is KSClassDeclaration &&
-                                    !(valQualified?.startsWith("kotlin.") ?: true) &&
-                                    !(valQualified?.startsWith("java.") ?: true)
+                            val targetPropType = targetProp.type.resolve()
+                            val targetNullable = targetPropType.nullability == Nullability.NULLABLE
 
-                            if (isCustomValue) {
-                                if (isNullable) {
-                                    "$targetPropName = this.$propName?.mapValues { it.value.toSource() }"
-                                } else {
-                                    "$targetPropName = this.$propName.mapValues { it.value.toSource() }"
+                            val hasDefaultValue = defaultValuesMap.containsKey(targetPropName)
+
+                            checkNullabilityCompatibility(
+                                sourceName,
+                                sourcePropName,
+                                sourceNullable,
+                                targetNullable,
+                                hasDefaultValue
+                            )
+
+                            when {
+                                sourcePropType.isListType() -> {
+                                    // تحقق وجود @AutoMapper على عنصر القائمة
+                                    val argType =
+                                        sourcePropType.arguments.firstOrNull()?.type?.resolve()
+                                            ?: throw IllegalStateException("Cannot resolve generic type argument for property '$sourcePropName' in class '$sourceName'")
+                                    val argDecl = argType.declaration as? KSClassDeclaration
+                                        ?: throw IllegalStateException("Generic argument of property '$sourcePropName' is not a class in '$sourceName'")
+                                    val hasAutoMapper =
+                                        argDecl.annotations.any { it.shortName.asString() == "AutoMapper" }
+                                    if (!hasAutoMapper) {
+                                        throw IllegalArgumentException("Property '$sourcePropName' generic type '${argDecl.simpleName.asString()}' in class '$sourceName' is missing @AutoMapper annotation")
+                                    }
+
+                                    if (sourceNullable) {
+                                        if (hasDefaultValue) {
+                                            val defaultVal = defaultValuesMap[targetPropName]
+                                            "$targetPropName = this.$sourcePropName?.map { it.toSource() } ?: $defaultVal"
+                                        } else {
+                                            "$targetPropName = this.$sourcePropName?.map { it.toSource() }"
+                                        }
+                                    } else {
+                                        "$targetPropName = this.$sourcePropName.map { it.toSource() }"
+                                    }
                                 }
-                            } else {
-                                "$targetPropName = this.$propName"
-                            }
-                        }
 
-                        else -> {
-                            val isCustomClass = typeDeclaration is KSClassDeclaration &&
-                                    !qualifiedName.isNullOrBlank() &&
-                                    !qualifiedName.startsWith("kotlin.") &&
-                                    !qualifiedName.startsWith("java.")
+                                sourcePropType.isArrayType() -> {
+                                    // تحقق وجود @AutoMapper على عناصر المصفوفة
+                                    val argType =
+                                        sourcePropType.arguments.firstOrNull()?.type?.resolve()
+                                            ?: throw IllegalStateException("Cannot resolve generic type argument for array property '$sourcePropName' in class '$sourceName'")
+                                    val argDecl = argType.declaration as? KSClassDeclaration
+                                        ?: throw IllegalStateException("Generic argument of array property '$sourcePropName' is not a class in '$sourceName'")
+                                    val hasAutoMapper =
+                                        argDecl.annotations.any { it.shortName.asString() == "AutoMapper" }
+                                    if (!hasAutoMapper) {
+                                        throw IllegalArgumentException("Array property '$sourcePropName' generic type '${argDecl.simpleName.asString()}' in class '$sourceName' is missing @AutoMapper annotation")
+                                    }
 
-                            if (isCustomClass) {
-                                if (isNullable) {
-                                    "$targetPropName = this.$propName?.toSource()"
-                                } else {
-                                    "$targetPropName = this.$propName.toSource()"
+                                    if (sourceNullable) {
+                                        if (hasDefaultValue) {
+                                            val defaultVal = defaultValuesMap[targetPropName]
+                                            "$targetPropName = this.$sourcePropName?.map { it.toSource() }?.toTypedArray() ?: $defaultVal"
+                                        } else {
+                                            "$targetPropName = this.$sourcePropName?.map { it.toSource() }?.toTypedArray()"
+                                        }
+                                    } else {
+                                        "$targetPropName = this.$sourcePropName.map { it.toSource() }.toTypedArray()"
+                                    }
                                 }
-                            } else {
-                                "$targetPropName = this.$propName"
+
+                                else -> {
+                                    val sourceTypeName =
+                                        sourcePropType.declaration.qualifiedName?.asString()
+                                    val targetTypeName =
+                                        targetPropType.declaration.qualifiedName?.asString()
+
+                                    if (sourceTypeName == targetTypeName && sourceNullable == targetNullable) {
+                                        "$targetPropName = this.$sourcePropName"
+                                    } else if (sourceNullable && !targetNullable && hasDefaultValue) {
+                                        val defaultVal = defaultValuesMap[targetPropName]
+                                        "$targetPropName = this.$sourcePropName?.toSource() ?: $defaultVal"
+                                    } else if (sourceNullable) {
+                                        "$targetPropName = this.$sourcePropName?.toSource()"
+                                    } else {
+                                        "$targetPropName = this.$sourcePropName.toSource()"
+                                    }
+                                }
                             }
+                        } catch (e: Exception) {
+                            val message =
+                                "Error processing property '$sourcePropName' in class '$sourceName': ${e.message}"
+                            logger.error(message, sourceClass)
+                            throw IllegalStateException(message, e)
                         }
                     }
-
-                } catch (e: Exception) {
-                    val message =
-                        "Error processing property '${prop.simpleName.asString()}' in class '$sourceName': ${e.message}"
-                    logger.error(message, sourceClass)
-                    throw IllegalStateException(message, e)
+                } else {
+                    // إذا لم توجد الخاصية في المصدر، استخدم القيمة الافتراضية إن وجدت أو null
+                    if (targetPropName in defaultValuesMap) {
+                        val defVal = defaultValuesMap[targetPropName]
+                        "$targetPropName = $defVal"
+                    } else {
+                        "$targetPropName = null"
+                    }
                 }
             }
         }
 
-        // -----------------------
-        // GENERATE REVERSE MAPPING (if requested)
-        // -----------------------
+
         val reverseLines = if (reverseEnabled) {
+            // تحقق من أن كل النوعيات المتداخلة تحمل @AutoMapper(reverse = true)
             sourceClass.getAllProperties().forEach { prop ->
+                val propName = prop.simpleName.asString()
                 val propType = prop.type.resolve()
                 val typeDecl = propType.declaration
-
                 val qualifiedName = (typeDecl as? KSClassDeclaration)?.qualifiedName?.asString()
+
                 if (qualifiedName != null &&
                     !qualifiedName.startsWith("kotlin.") &&
                     !qualifiedName.startsWith("java.")
                 ) {
-                    val autoMapperAnn = typeDecl.annotations.firstOrNull {
-                        it.shortName.asString() == "AutoMapper"
-                    }
+                    val autoMapperAnn =
+                        (typeDecl as? KSClassDeclaration)?.annotations?.firstOrNull {
+                            it.shortName.asString() == "AutoMapper"
+                        }
 
                     if (autoMapperAnn == null) {
-                        throw IllegalArgumentException("Property '${prop.simpleName.asString()}' type '$qualifiedName' is a nested class without @AutoMapper annotation, required for reverse mapping.")
+                        throw IllegalArgumentException("Property '$propName' type '$qualifiedName' is nested class without @AutoMapper annotation, required for reverse mapping.")
                     } else {
                         val nestedReverse =
                             autoMapperAnn.arguments.firstOrNull { it.name?.asString() == "reverse" }?.value as? Boolean
                                 ?: false
                         if (!nestedReverse) {
-                            throw IllegalArgumentException("Property '${prop.simpleName.asString()}' type '$qualifiedName' must have @AutoMapper(reverse = true) to support reverse mapping in parent class '${sourceClass.simpleName.asString()}'.")
+                            throw IllegalArgumentException("Property '$propName' type '$qualifiedName' must have @AutoMapper(reverse = true) to support reverse mapping in parent class '${sourceClass.simpleName.asString()}'.")
                         }
                     }
                 }
@@ -351,16 +398,18 @@ class AutoMapperProcessor(
                     val typeDecl = sourcePropType.declaration
                     val qualifiedName = typeDecl.qualifiedName?.asString()
 
-                    when {
+                    if (sourcePropType.isEnumType()) {
+                        "$sourcePropName = this.$targetPropName"
+                    } else when {
                         sourcePropType.isListType() -> {
                             val argType = sourcePropType.arguments.firstOrNull()?.type?.resolve()
                                 ?: return@mapNotNull "$sourcePropName = this.$targetPropName"
                             val argDecl = argType.declaration
                             val isCustom = argDecl is KSClassDeclaration &&
                                     !(argDecl.qualifiedName?.asString()?.startsWith("kotlin.")
-                                        ?: true)
+                                        ?: true) &&
+                                    !argType.isEnumType()
                             if (isCustom) {
-                                // هنا شرط nullable لو true نستخدم ?.map  والا .map
                                 "$sourcePropName = this.$targetPropName${if (isNullable) "?." else "."}map { it.toOriginal() }"
                             } else {
                                 "$sourcePropName = this.$targetPropName"
@@ -373,7 +422,8 @@ class AutoMapperProcessor(
                             val argDecl = argType.declaration
                             val isCustom = argDecl is KSClassDeclaration &&
                                     !(argDecl.qualifiedName?.asString()?.startsWith("kotlin.")
-                                        ?: true)
+                                        ?: true) &&
+                                    !argType.isEnumType()
                             if (isCustom) {
                                 "$sourcePropName = this.$targetPropName${if (isNullable) "?." else "."}map { it.toOriginal() }.toTypedArray()"
                             } else {
@@ -387,7 +437,8 @@ class AutoMapperProcessor(
                             val valDecl = valType.declaration
                             val isCustom = valDecl is KSClassDeclaration &&
                                     !(valDecl.qualifiedName?.asString()?.startsWith("kotlin.")
-                                        ?: true)
+                                        ?: true) &&
+                                    !valType.isEnumType()
                             if (isCustom) {
                                 "$sourcePropName = this.$targetPropName${if (isNullable) "?." else "."}mapValues { it.value.toOriginal() }"
                             } else {
@@ -399,9 +450,9 @@ class AutoMapperProcessor(
                             val isCustom = typeDecl is KSClassDeclaration &&
                                     !qualifiedName.isNullOrBlank() &&
                                     !qualifiedName.startsWith("kotlin.") &&
-                                    !qualifiedName.startsWith("java.")
+                                    !qualifiedName.startsWith("java.") &&
+                                    !sourcePropType.isEnumType()
                             if (isCustom) {
-                                // هنا شرط nullable لتطبيق ?.toOriginal() أو .toOriginal()
                                 "$sourcePropName = this.$targetPropName${if (isNullable) "?." else "."}toOriginal()"
                             } else {
                                 "$sourcePropName = this.$targetPropName"
@@ -414,12 +465,13 @@ class AutoMapperProcessor(
             ""
         }
 
-
-        // build imports string
         val imports = importsSet.sorted().joinToString("\n") { "import $it" }
 
+        val containingFile = sourceClass.containingFile
+            ?: throw IllegalStateException("Source class ${sourceName} does not have a containing file.")
+
         val file = codeGen.createNewFile(
-            Dependencies(false, sourceClass.containingFile!!),
+            Dependencies(false, containingFile),
             pkg,
             mapperName
         )
@@ -434,9 +486,8 @@ class AutoMapperProcessor(
             appendLine("// Auto-generated by AutoMapper KSP")
             if (optInString.isNotBlank()) {
                 appendLine(optInString)
+                appendLine()
             }
-
-            // Generate forward extension function
             appendLine("$visibilityModifier fun $sourceName.toSource(): $targetName {")
             appendLine("    return $targetName(")
             forwardLines.forEachIndexed { idx, l ->
@@ -446,15 +497,13 @@ class AutoMapperProcessor(
             appendLine("    )")
             appendLine("}")
 
-            // Generate reverse extension function (if enabled)
             if (reverseEnabled) {
                 appendLine()
                 appendLine("$visibilityModifier fun $targetName.toOriginal(): $sourceName {")
                 appendLine("    return $sourceName(")
                 if (reverseLines.isNotEmpty()) {
-                    val revLines = reverseLines.lines()
-                    revLines.forEachIndexed { idx, l ->
-                        val comma = if (idx < revLines.lastIndex) "," else ""
+                    reverseLines.lines().forEachIndexed { idx, l ->
+                        val comma = if (idx < reverseLines.lines().lastIndex) "," else ""
                         appendLine("        $l$comma")
                     }
                 }
@@ -463,13 +512,14 @@ class AutoMapperProcessor(
             }
         }
 
-
         file.write(content.toByteArray())
     }
 
     private fun KSType.isListType(): Boolean {
         val declName = this.declaration.qualifiedName?.asString() ?: return false
-        return declName == "kotlin.collections.List" || declName == "kotlin.collections.MutableList" || declName == "java.util.List"
+        return declName == "kotlin.collections.List" ||
+                declName == "kotlin.collections.MutableList" ||
+                declName == "java.util.List"
     }
 
     private fun KSType.isArrayType(): Boolean {
@@ -479,29 +529,32 @@ class AutoMapperProcessor(
 
     private fun KSType.isMapType(): Boolean {
         val declName = this.declaration.qualifiedName?.asString() ?: return false
-        return declName == "kotlin.collections.Map" || declName == "kotlin.collections.MutableMap" || declName == "java.util.Map"
+        return declName == "kotlin.collections.Map" ||
+                declName == "kotlin.collections.MutableMap" ||
+                declName == "java.util.Map"
+    }
+
+    private fun KSType.isEnumType(): Boolean {
+        val decl = this.declaration
+        return decl is KSClassDeclaration && decl.classKind.name == "ENUM_CLASS"
     }
 
     private fun checkNullabilityCompatibility(
         className: String,
         propName: String,
         sourceNullable: Boolean,
-        targetNullable: Boolean
+        targetNullable: Boolean,
+        hasDefaultValue: Boolean
     ) {
-        if (sourceNullable && !targetNullable) {
+        if (sourceNullable && !targetNullable && !hasDefaultValue) {
             throw IllegalArgumentException(
-                "Property '$propName' in source class '$className' is nullable but the corresponding property in target is non-nullable. This will cause runtime exceptions."
+                "Property '$propName' in source class '$className' is nullable but the corresponding property in target is non-nullable and no default value is provided."
             )
         }
     }
 
-    // دالة مساعدة للحصول على أسماء خصائص val الموجودة في primary constructor
     private fun KSClassDeclaration.getPrimaryConstructorValProperties(): Set<String> {
         val ctor = this.primaryConstructor ?: return emptySet()
-        return ctor.parameters
-            .filter { it.isVal } // فقط val، ليس var (عادة في data class كل parameters هي val)
-            .mapNotNull { it.name?.asString() }
-            .toSet()
+        return ctor.parameters.filter { it.isVal }.mapNotNull { it.name?.asString() }.toSet()
     }
-
 }

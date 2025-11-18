@@ -8,8 +8,18 @@ import kotlin.reflect.KClass
 annotation class AutoMapper(
     val to: KClass<*>,
     val optIns: Array<String> = [],
-    val reverse: Boolean = false
+    val ignoreKeys: Array<String> = [],
+    val forcePublic: Boolean = false,
+    val defaultValues: Array<DefaultValue> = []
+//    val reverse: Boolean = false
 
+)
+
+@Target(AnnotationTarget.ANNOTATION_CLASS, AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.SOURCE)
+annotation class DefaultValue(
+    val key: String,
+    val value: String
 )
 
 @Target(AnnotationTarget.PROPERTY)
@@ -30,3 +40,8 @@ annotation class AutoMapperCustom(
 annotation class AutoMapperAddOptIns(
     val value: Array<String>
 )
+
+
+
+
+

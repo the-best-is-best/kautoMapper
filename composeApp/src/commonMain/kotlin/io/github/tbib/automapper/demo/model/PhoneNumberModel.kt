@@ -5,5 +5,4 @@ data class PhoneNumberModel(
     val number: String,
     val cityCode: String,
     val countryCode: String,
-    val listAnotherNumber: Map<Int, PhoneNumberModel>
 )

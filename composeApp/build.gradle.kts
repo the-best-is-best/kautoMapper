@@ -55,6 +55,10 @@ kotlin {
         kotlin.srcDir("build/generated/ksp/metadata/commonMain/kotlin")
     }
 
+    sourceSets.all {
+        languageSettings.enableLanguageFeature("DisableCompatibilityModeForKotlinMetadata")
+    }
+
 }
 
 dependencies {

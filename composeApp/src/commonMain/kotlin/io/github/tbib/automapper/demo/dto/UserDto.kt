@@ -1,5 +1,6 @@
 package io.github.tbib.automapper.demo.dto
 
+import androidx.compose.runtime.ExperimentalComposeApi
 import io.github.tbib.automapper.automapperannotations.AutoMapper
 import io.github.tbib.automapper.automapperannotations.AutoMapperAddOptIns
 import io.github.tbib.automapper.automapperannotations.AutoMapperCustom
@@ -10,8 +11,8 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.Instant
 
 @AutoMapper(to = UserModel::class)
-@AutoMapperAddOptIns(["kotlin.time.ExperimentalTime"])
-data class UserDto @OptIn(ExperimentalTime::class) constructor(
+@AutoMapperAddOptIns(["kotlin.time.ExperimentalTime", "androidx.compose.runtime.ExperimentalComposeApi"])
+data class UserDto @OptIn(ExperimentalComposeApi::class) constructor(
     val id: Int,
     val name: String,
     @AutoMapperCustom("joinDateMapper")

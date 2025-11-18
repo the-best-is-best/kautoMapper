@@ -251,11 +251,18 @@ class AutoMapperProcessor(
                                             ?: throw IllegalStateException("Cannot resolve generic type argument for property '$sourcePropName' in class '$sourceName'")
                                     val argDecl = argType.declaration as? KSClassDeclaration
                                         ?: throw IllegalStateException("Generic argument of property '$sourcePropName' is not a class in '$sourceName'")
+
                                     val hasAutoMapper =
-                                        argDecl.annotations.any { it.shortName.asString() == "AutoMapper" }
+                                        if (isPrimitiveOrStandardType(argDecl.qualifiedName?.asString())) {
+                                            true
+                                        } else {
+                                            argDecl.annotations.any { it.shortName.asString() == "AutoMapper" }
+                                        }
+
                                     if (!hasAutoMapper) {
                                         throw IllegalArgumentException("Property '$sourcePropName' generic type '${argDecl.simpleName.asString()}' in class '$sourceName' is missing @AutoMapper annotation")
                                     }
+
 
                                     if (sourceNullable) {
                                         if (hasDefaultValue) {
@@ -295,20 +302,46 @@ class AutoMapperProcessor(
                                 }
 
                                 else -> {
-                                    val sourceTypeName =
-                                        sourcePropType.declaration.qualifiedName?.asString()
-                                    val targetTypeName =
-                                        targetPropType.declaration.qualifiedName?.asString()
+                                    val typeDecl = sourcePropType.declaration as? KSClassDeclaration
+                                    val qualifiedName = typeDecl?.qualifiedName?.asString()
+                                    val hasAutoMapper =
+                                        typeDecl?.annotations?.any { it.shortName.asString() == "AutoMapper" }
+                                            ?: false
+                                    val isPrimitiveOrStandard =
+                                        isPrimitiveOrStandardType(qualifiedName)
+                                    val isEnum = sourcePropType.isEnumType()
 
-                                    if (sourceTypeName == targetTypeName && sourceNullable == targetNullable) {
+                                    if (hasAutoMapper) {
+                                        if (sourceNullable && !targetNullable && hasDefaultValue) {
+                                            val defaultVal = defaultValuesMap[targetPropName]
+                                            "$targetPropName = this.$sourcePropName?.toSource() ?: $defaultVal"
+                                        } else if (sourceNullable) {
+                                            "$targetPropName = this.$sourcePropName?.toSource()"
+                                        } else {
+                                            "$targetPropName = this.$sourcePropName.toSource()"
+                                        }
+                                    } else if (isPrimitiveOrStandard || isEnum) {
+                                        // نمرر مباشرة
+                                        // تحقق تطابق النوع هنا أيضًا (اختياري إذا تريد صارم)
+                                        if (!isSameTypeIgnoringNullability(
+                                                sourcePropType,
+                                                targetPropType
+                                            )
+                                        ) {
+                                            throw IllegalArgumentException("Type mismatch for property '$sourcePropName' in class '$sourceName': source type '$qualifiedName' does not match target type '${targetPropType.declaration.qualifiedName?.asString()}'")
+                                        }
                                         "$targetPropName = this.$sourcePropName"
-                                    } else if (sourceNullable && !targetNullable && hasDefaultValue) {
-                                        val defaultVal = defaultValuesMap[targetPropName]
-                                        "$targetPropName = this.$sourcePropName?.toSource() ?: $defaultVal"
-                                    } else if (sourceNullable) {
-                                        "$targetPropName = this.$sourcePropName?.toSource()"
                                     } else {
-                                        "$targetPropName = this.$sourcePropName.toSource()"
+                                        // حالة كلاس مباشر بدون annotation ولا generic (يسمح بتمرير مباشر)
+                                        if (typeDecl != null && sourcePropType.arguments.isEmpty()) {
+                                            // تحقق صارم لنفس النوع
+                                            if (sourcePropType != targetPropType) {
+                                                throw IllegalArgumentException("Type mismatch for property '$sourcePropName' in class '$sourceName': source type '$qualifiedName' does not match target type '${targetPropType.declaration.qualifiedName?.asString()}'")
+                                            }
+                                            "$targetPropName = this.$sourcePropName"
+                                        } else {
+                                            throw IllegalArgumentException("Property '$sourcePropName' in class '$sourceName' is missing @AutoMapper annotation and is not primitive or enum")
+                                        }
                                     }
                                 }
                             }
@@ -557,4 +590,30 @@ class AutoMapperProcessor(
         val ctor = this.primaryConstructor ?: return emptySet()
         return ctor.parameters.filter { it.isVal }.mapNotNull { it.name?.asString() }.toSet()
     }
+
+    private fun isPrimitiveOrStandardType(qualifiedName: String?): Boolean {
+        val standardTypes = setOf(
+            "java.lang.String",
+            "java.lang.Integer",
+            "java.lang.Boolean"
+        )
+        return qualifiedName?.startsWith("kotlin.") == true || qualifiedName in standardTypes
+    }
+
+    private fun isSameTypeIgnoringNullability(type1: KSType, type2: KSType): Boolean {
+        val decl1 = type1.declaration.qualifiedName?.asString()
+        val decl2 = type2.declaration.qualifiedName?.asString()
+        if (decl1 != decl2) return false
+
+        // تحقق من عدد المعاملات النوعية
+        if (type1.arguments.size != type2.arguments.size) return false
+
+        for (i in type1.arguments.indices) {
+            val arg1 = type1.arguments[i].type?.resolve() ?: return false
+            val arg2 = type2.arguments[i].type?.resolve() ?: return false
+            if (!isSameTypeIgnoringNullability(arg1, arg2)) return false
+        }
+        return true
+    }
+
 }

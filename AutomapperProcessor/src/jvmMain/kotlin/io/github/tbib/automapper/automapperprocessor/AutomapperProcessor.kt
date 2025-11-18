@@ -7,7 +7,6 @@ import com.google.devtools.ksp.processing.SymbolProcessorEnvironment
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
-import com.google.devtools.ksp.symbol.KSPropertyDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.Nullability
 import io.github.tbib.automapper.automapperannotations.AutoMapper
@@ -646,13 +645,5 @@ class AutoMapperProcessor(
         return true
     }
 
-    private fun KSClassDeclaration.getConstructorProperties(): List<KSPropertyDeclaration> {
-        val ctorParams = this.primaryConstructor?.parameters ?: return emptyList()
-        val props = this.getAllProperties().toList()
-        return ctorParams.mapNotNull { param ->
-            if (param.isVal || param.isVar) {
-                props.firstOrNull { it.simpleName.asString() == param.name?.asString() }
-            } else null
-        }
-    }
+
 }

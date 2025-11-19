@@ -1,7 +1,5 @@
 # AutoMapper Annotations
 
-<h1 align="center">AutoMapper Annotations</h1><br>
-
 <div align="center">
 <a href="https://opensource.org/licenses/Apache-2.0"><img alt="License" src="https://img.shields.io/badge/License-Apache%202.0-blue.svg"/></a>
 <img src="https://img.shields.io/badge/Platform-Kotlin%20Multiplatform-blueviolet.svg" />
@@ -23,7 +21,7 @@ It includes:
 - Custom mapping functions
 - Add OptIns to generated class
 - Custom mapping from parent
-- Public/ Internal control for generated mapper
+- Public/Internal control for generated mapper
 
 ---
 
@@ -35,21 +33,15 @@ It includes:
 
 Add to `commonMain`:
 
-```kotlin
 implementation("io.github.the-best-is-best.automapper:automapperannotations:1.0.0-rc.1")
-```
 
 Add KSP processor:
 
-```kotlin
 ksp("io.github.the-best-is-best:automapper-processor:1.0.0-rc.1")
-```
 
 To start generator
 
-```terminal
-./gradlew composeApp:kspCommonMainKotlinMetadata   
-```
+./gradlew composeApp:kspCommonMainKotlinMetadata
 
 ---
 
@@ -59,7 +51,6 @@ To start generator
 
 Attach to a CLASS to generate a mapper.
 
-```kotlin
 annotation class AutoMapper(
     val to: KClass<*>,
     val optIns: Array<String> = [],
@@ -67,9 +58,7 @@ annotation class AutoMapper(
     val forcePublic: Boolean = false,
     val defaultValues: Array<DefaultValue> = [],
     val reverse: Boolean = false // available when use reverse version
-
 )
-```
 
 ---
 
@@ -77,7 +66,7 @@ annotation class AutoMapper(
 
 Adds default value if missing.
 
-```kotlin
+```kotin
 annotation class DefaultValue(
     val key: String,
     val value: String
@@ -90,7 +79,8 @@ annotation class DefaultValue(
 
 Renames property.
 
-```kotlin
+```kotin
+
 annotation class AutoMapperName(val to: String)
 ```
 
@@ -100,7 +90,8 @@ annotation class AutoMapperName(val to: String)
 
 Use custom mapping function.
 
-```kotlin
+```kotin
+
 annotation class AutoMapperCustom(
     val mapperFunction: String,
     val reverseMapperFunction: String = "" // available when use reverse version
@@ -113,7 +104,8 @@ annotation class AutoMapperCustom(
 
 Use a custom method defined inside the parent generated mapper class.
 
-```kotlin
+```kotin
+
 annotation class AutoMapperCustomFromParent(
     val mapperFunction: String,
     val reverseMapperFunction: String = "" // available when use reverse version
@@ -126,7 +118,8 @@ annotation class AutoMapperCustomFromParent(
 
 Adds opt-ins to the generated class.
 
-```kotlin
+```kotin
+
 annotation class AutoMapperAddOptIns(val value: Array<String>)
 ```
 
@@ -136,7 +129,8 @@ annotation class AutoMapperAddOptIns(val value: Array<String>)
 
 Add plugin:
 
-```kotlin
+```kotin
+
 id("com.google.devtools.ksp")
 ```
 
@@ -144,7 +138,7 @@ id("com.google.devtools.ksp")
 
 ## Configure KSP + KMP
 
-```kotlin
+```kotin
 kotlin {
     androidTarget {
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
@@ -171,14 +165,13 @@ ksp {
     // auto mapper
     arg("autoMapperVisibility", "false")
 }
-
 ```
 
 ---
 
 # 🔧 Force metadata generation before all KSP tasks
 
-```kotlin
+```gradle
 project.tasks.withType(KotlinCompilationTask::class.java).configureEach {
     if (name != "kspCommonMainKotlinMetadata") {
         dependsOn("kspCommonMainKotlinMetadata")
@@ -190,7 +183,7 @@ project.tasks.withType(KotlinCompilationTask::class.java).configureEach {
 
 # 🛑 Disable multiple KSP tasks (Required for KMM)
 
-```kotlin
+```gradle
 project.tasks.withType(KspAATask::class.java).configureEach {
     if (name != "kspCommonMainKotlinMetadata") {
         if (name == "kspDebugKotlinAndroid") enabled = false
@@ -209,10 +202,11 @@ project.tasks.withType(KspAATask::class.java).configureEach {
 
 ### Model → Entity Mapping
 
-```kotlin
+```kotin
+
 @AutoMapper(
     to = UserEntity::class,
-    reverse: true // this need use version in the name containe reverse
+    reverse: true, // this need use version in the name containe reverse
     ignoreKeys = ["internalId"],
     forcePublic = true,
     optIns = ["kotlin.ExperimentalStdlibApi"],
@@ -248,7 +242,8 @@ data class UserDto(
 
 Generated mapper:
 
-```
+```kotin
+
 UserDtoMapper.toSource(source: UserDto): UserEntity
 ```
 
@@ -257,12 +252,10 @@ UserDtoMapper.toSource(source: UserDto): UserEntity
 # 📍 Notes
 
 - Generated code path:  
-  `build/generated/ksp/metadata/commonMain/kotlin`
+  build/generated/ksp/metadata/commonMain/kotlin
 - Works with: Android, iOS, Kotlin JVM & Native
 - No runtime overhead — compile-time generated
 
 ---
 
 # 🎉 Done
-
-A clean, ready-to-use README for `automapperannotations`.

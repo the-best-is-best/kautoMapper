@@ -29,10 +29,7 @@ It includes:
 
 # Versions
 
-- **Stable:
-  ** [![Maven Central](https://img.shields.io/maven-central/v/io.github.the-best-is-best/automapper-annotations)](https://search.maven.org/artifact/io.github.the-best-is-best/automapper-annotations)
-- **Snapshot:
-  ** ![Maven Central Snapshot](https://img.shields.io/maven-central/s/io.github.the-best-is-best/automapper-annotations?strategy=latestProperty)
+** [![Maven Central](https://img.shields.io/maven-central/v/io.github.the-best-is-best/automapper-annotations)](https://search.maven.org/artifact/io.github.the-best-is-best/automapper-annotations)
 
 # 📦 Maven Central
 

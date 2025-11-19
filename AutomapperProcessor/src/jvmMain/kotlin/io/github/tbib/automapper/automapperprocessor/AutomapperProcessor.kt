@@ -261,11 +261,7 @@ class AutoMapperProcessor(
                         }
                     } else ""
                     val arraySuffix = if (sourcePropType.isArray()) ".toTypedArray()" else ""
-                    if (mapLogic.isNotEmpty()) {
-                        "$accessPrefix$nullSafeOp$mapLogic$arraySuffix"
-                    } else {
-                        accessPrefix
-                    }
+                    "$accessPrefix$nullSafeOp$mapLogic$arraySuffix"
                 }
 
                 (sourcePropType.declaration as? KSClassDeclaration)?.isCustomDataClass() == true -> {

@@ -82,7 +82,7 @@ class AutoMapperProcessor(
         val forwardMappingLines =
             generateForwardMappingLines(sourceProps, targetProps, config, importHandler)
         val reverseMappingLines = if (config.isReverseEnabled) {
-            generateReverseMappingLines(sourceProps, targetProps, config, importHandler)
+            generateReverseMappingLines(sourceProps, targetProps, config)
         } else null
 
         // 5. Write the generated file.
@@ -233,7 +233,6 @@ class AutoMapperProcessor(
         sourceProps: List<KSPropertyDeclaration>,
         targetProps: List<KSPropertyDeclaration>,
         config: MapperConfig,
-        importHandler: ImportHandler
     ): List<String> {
         // Validate that all nested types for reverse mapping are correctly annotated.
         validateNestedReverseSupport(sourceProps, config.sourceClass.simpleName.asString())
@@ -261,7 +260,11 @@ class AutoMapperProcessor(
                         }
                     } else ""
                     val arraySuffix = if (sourcePropType.isArray()) ".toTypedArray()" else ""
-                    "$accessPrefix$nullSafeOp$mapLogic$arraySuffix"
+                    if (mapLogic.isNotEmpty()) {
+                        "$accessPrefix$nullSafeOp$mapLogic$arraySuffix"
+                    } else {
+                        accessPrefix
+                    }
                 }
 
                 (sourcePropType.declaration as? KSClassDeclaration)?.isCustomDataClass() == true -> {

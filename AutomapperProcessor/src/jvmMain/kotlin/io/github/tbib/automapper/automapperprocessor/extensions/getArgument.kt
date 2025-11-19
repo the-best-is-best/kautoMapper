@@ -1,5 +1,6 @@
 package io.github.tbib.automapper.automapperprocessor.extensions
 
+import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSDeclaration
@@ -31,6 +32,7 @@ internal fun KSClassDeclaration.getPrimaryConstructorProperties(): List<KSProper
 }
 
 internal fun KSClassDeclaration.isCustomDataClass(): Boolean {
+    if (this.classKind == ClassKind.ENUM_CLASS) return false
     val fqn = this.qualifiedName?.asString()
     return fqn != null && !fqn.startsWith("kotlin.") && !fqn.startsWith("java.")
 }

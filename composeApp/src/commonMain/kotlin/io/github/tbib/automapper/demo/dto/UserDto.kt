@@ -3,6 +3,8 @@ package io.github.tbib.automapper.demo.dto
 import io.github.tbib.automapper.automapperannotations.AutoMapper
 import io.github.tbib.automapper.automapperannotations.AutoMapperAddOptIns
 import io.github.tbib.automapper.automapperannotations.AutoMapperName
+import io.github.tbib.automapper.demo.Roles
+import io.github.tbib.automapper.demo.Status
 import io.github.tbib.automapper.demo.model.UserModel
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
@@ -17,7 +19,9 @@ data class UserDto @OptIn(ExperimentalTime::class) constructor(
     @AutoMapperName("addres")
     val address: AddressDto,
     val emails: List<String>,
-    val phoneNumbers: List<PhoneNumberDto>
+    val phoneNumbers: List<PhoneNumberDto>,
+    val role: Roles,
+    val status: Status
 ) {
     @OptIn(ExperimentalTime::class)
     companion object {

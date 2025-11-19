@@ -26,11 +26,13 @@ It includes:
 - Public/ Internal control for generated mapper
 
 ---
-[![Maven Central](https://img.shields.io/maven-central/v/io.github.the-best-is-best/automapper-annotations)](https://central.sonatype.com/artifact/io.github.the-best-is-best/automapper-annotations)
 
-Compose Utils is available on `mavenCentral()`.
+# Versions
 
-___
+- **Stable:
+  ** [![Maven Central](https://img.shields.io/maven-central/v/io.github.the-best-is-best/automapper-annotations)](https://search.maven.org/artifact/io.github.the-best-is-best/automapper-annotations)
+- **Snapshot:
+  ** ![Maven Central Snapshot](https://img.shields.io/maven-central/s/io.github.the-best-is-best/automapper-annotations?strategy=latestProperty)
 
 # 📦 Maven Central
 
@@ -43,7 +45,7 @@ implementation("io.github.the-best-is-best.automapper:automapperannotations:1.0.
 Add KSP processor:
 
 ```kotlin
-ksp("io.github.the-best-is-best.automapper:automapperProcessor:1.0.0-rc.1")
+ksp("io.github.the-best-is-best:automapper-processor:1.0.0-rc.1")
 ```
 
 To start generator
@@ -208,6 +210,7 @@ project.tasks.withType(KspAATask::class.java).configureEach {
 ```kotlin
 @AutoMapper(
     to = UserEntity::class,
+    reverse: true // this need use version in the name containe reverse
     ignoreKeys = ["internalId"],
     forcePublic = true,
     optIns = ["kotlin.ExperimentalStdlibApi"],

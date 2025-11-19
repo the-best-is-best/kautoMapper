@@ -100,7 +100,16 @@ internal fun validateNestedReverseSupport(
 ) {
     sourceProps.forEach { prop ->
         val propType = prop.type.resolve()
-        val typeDecl = propType.declaration as? KSClassDeclaration
+        val (typeToCheck, _) = if (propType.isMap() || propType.declaration.qualifiedName?.asString()
+                ?.startsWith("kotlin.collections") == true
+        ) {
+            val genericType = propType.arguments.firstOrNull()?.type?.resolve()
+            Pair(genericType, true)
+        } else {
+            Pair(propType, false)
+        }
+
+        val typeDecl = typeToCheck?.declaration as? KSClassDeclaration
 
         if (typeDecl != null && typeDecl.isCustomDataClass()) {
             val nestedMapper =

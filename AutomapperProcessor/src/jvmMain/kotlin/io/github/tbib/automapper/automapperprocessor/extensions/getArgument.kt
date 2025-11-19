@@ -37,7 +37,7 @@ internal fun KSClassDeclaration.isCustomDataClass(): Boolean {
 
 internal fun List<String>.toOptInString(): String {
     if (this.isEmpty()) return ""
-    return "@OptIn(" + this.joinToString { "${it.substringAfterLast('.')}::class" } + ")"
+    return "@file:OptIn(" + this.joinToString { "${it.substringAfterLast('.')}::class" } + ")"
 }
 
 // Property-specific extensions

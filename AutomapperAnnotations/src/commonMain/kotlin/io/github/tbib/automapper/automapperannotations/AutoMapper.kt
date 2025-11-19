@@ -10,8 +10,8 @@ annotation class AutoMapper(
     val optIns: Array<String> = [],
     val ignoreKeys: Array<String> = [],
     val forcePublic: Boolean = false,
-    val defaultValues: Array<DefaultValue> = []
-//    val reverse: Boolean = false
+    val defaultValues: Array<DefaultValue> = [],
+    val reverse: Boolean = false
 
 )
 

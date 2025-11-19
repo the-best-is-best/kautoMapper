@@ -1,7 +1,10 @@
 package io.github.tbib.automapper.automapperprocessor.core
 
+import com.google.devtools.ksp.getDeclaredFunctions
 import com.google.devtools.ksp.processing.KSPLogger
+import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.symbol.KSClassDeclaration
+import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import com.google.devtools.ksp.symbol.KSPropertyDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.Nullability
@@ -10,6 +13,7 @@ import io.github.tbib.automapper.automapperprocessor.extensions.getMappedName
 import io.github.tbib.automapper.automapperprocessor.extensions.hasAnnotation
 import io.github.tbib.automapper.automapperprocessor.extensions.isCustomDataClass
 import io.github.tbib.automapper.automapperprocessor.extensions.isMap
+import io.github.tbib.automapper.automapperprocessor.extensions.isSameTypeAs
 
 /**
  * Validates that reverse mapping is not enabled when @AutoMapperCustom is used.
@@ -181,6 +185,79 @@ internal fun checkNullability(
 
             4. Make the source property '${sourceProp.simpleName.asString()}' non-nullable.
             """.trimIndent()
+        )
+    }
+}
+
+internal fun validateCustomMapper(
+    resolver: Resolver,
+    sourceClass: KSClassDeclaration,
+    funcName: String,
+    sourceProp: KSPropertyDeclaration,
+    targetPropType: KSType
+) {
+    var func: KSFunctionDeclaration? = null
+
+    // Strategy 1: Look in the companion object of the source class
+    val companionObject = sourceClass.declarations
+        .filterIsInstance<KSClassDeclaration>()
+        .firstOrNull { it.isCompanionObject }
+
+    if (companionObject != null) {
+        func = companionObject.getDeclaredFunctions()
+            .firstOrNull { it.simpleName.asString() == funcName }
+    }
+
+    // Strategy 2: If not in companion, look for a top-level function.
+    if (func == null) {
+        val qualifiedFuncName = if ('.' in funcName) {
+            funcName
+        } else {
+            "${sourceClass.packageName.asString()}.$funcName"
+        }
+
+        func = resolver.getFunctionDeclarationsByName(
+            resolver.getKSNameFromString(qualifiedFuncName),
+            includeTopLevel = true
+        ).firstOrNull()
+    }
+
+    if (func == null) {
+        throw IllegalArgumentException("@AutoMapperCustom error on '${sourceClass.simpleName.asString()}.${sourceProp.simpleName.asString()}': Function '$funcName' not found in companion object or as a top-level function.")
+    }
+
+    // --- Validation Logic ---
+    // The function must take the source property's type as input.
+    val expectedInputType = sourceProp.type.resolve()
+    val actualInputType = func.parameters.firstOrNull()?.type?.resolve()
+
+    // The function must return the target property's type.
+    val expectedOutputType = targetPropType
+    val actualOutputType = func.returnType?.resolve()
+
+    val errorLocation = "'${sourceClass.simpleName.asString()}.${sourceProp.simpleName.asString()}'"
+    val funcSignatureForError =
+        "fun ${func.simpleName.asString()}(${actualInputType?.declaration?.simpleName?.asString() ?: ""})" +
+                ": ${actualOutputType?.declaration?.simpleName?.asString() ?: "Unit"}"
+
+    // Validate the input parameter
+    if (func.parameters.size != 1 || actualInputType == null || !actualInputType.isSameTypeAs(
+            expectedInputType
+        )
+    ) {
+        val expectedInputTypeName = expectedInputType.declaration.simpleName.asString()
+        throw IllegalArgumentException(
+            "@AutoMapperCustom error on $errorLocation: " +
+                    "Function '$funcName' has an invalid parameter. Expected input type '($expectedInputTypeName)', but found signature '$funcSignatureForError'."
+        )
+    }
+
+    // Validate the return type
+    if (actualOutputType == null || !actualOutputType.isSameTypeAs(expectedOutputType)) {
+        val expectedOutputTypeName = expectedOutputType.declaration.simpleName.asString()
+        throw IllegalArgumentException(
+            "@AutoMapperCustom error on $errorLocation: " +
+                    "Function '$funcName' has an invalid return type. Expected return type '$expectedOutputTypeName', but found signature '$funcSignatureForError'."
         )
     }
 }

@@ -48,7 +48,7 @@ class AutoMapperProcessor(
 
         annotatedClasses.forEach { classDecl ->
             try {
-                generateMapperFor(classDecl)
+                generateMapperFor(classDecl, resolver)
             } catch (e: Exception) {
                 logger.error(
                     "Failed to generate mapper for ${classDecl.simpleName.asString()}: ${e.message}",
@@ -64,7 +64,7 @@ class AutoMapperProcessor(
     /**
      * Orchestrates the entire mapper generation process for a single annotated class.
      */
-    private fun generateMapperFor(sourceClass: KSClassDeclaration) {
+    private fun generateMapperFor(sourceClass: KSClassDeclaration, resolver: Resolver) {
         // 1. Extract and validate configuration from annotations.
         val config = MapperConfig.from(sourceClass, autoMapperVisibility)
         val targetClass = config.targetClass
@@ -80,7 +80,7 @@ class AutoMapperProcessor(
         // 4. Generate the mapping logic.
         val importHandler = ImportHandler(config, sourceClass)
         val forwardMappingLines =
-            generateForwardMappingLines(sourceProps, targetProps, config, importHandler)
+            generateForwardMappingLines(sourceProps, targetProps, config, importHandler, resolver)
         val reverseMappingLines = if (config.isReverseEnabled) {
             generateReverseMappingLines(sourceProps, targetProps, config)
         } else null
@@ -98,7 +98,8 @@ class AutoMapperProcessor(
         sourceProps: List<KSPropertyDeclaration>,
         targetProps: List<KSPropertyDeclaration>,
         config: MapperConfig,
-        importHandler: ImportHandler
+        importHandler: ImportHandler,
+        resolver: Resolver
     ): List<String> {
         return targetProps.map { targetProp ->
             val targetPropName = targetProp.simpleName.asString()
@@ -119,7 +120,7 @@ class AutoMapperProcessor(
                     val sourceProp = sourceProps.find { it.getMappedName() == targetPropName }
                         ?: throw IllegalStateException("Validated source property for '$targetPropName' not found.")
 
-                    mapProperty(sourceProp, targetProp, config, importHandler)
+                    mapProperty(sourceProp, targetProp, config, importHandler, resolver)
                 }
             }
         }
@@ -132,7 +133,8 @@ class AutoMapperProcessor(
         sourceProp: KSPropertyDeclaration,
         targetProp: KSPropertyDeclaration,
         config: MapperConfig,
-        importHandler: ImportHandler
+        importHandler: ImportHandler,
+        resolver: Resolver
     ): String {
         val targetPropName = targetProp.simpleName.asString()
         val sourcePropName = sourceProp.simpleName.asString()
@@ -146,6 +148,7 @@ class AutoMapperProcessor(
         val customMapper = sourceProp.getCustomMapperAnnotation()
         if (customMapper != null) {
             val (annotationName, funcName) = customMapper
+            validateCustomMapper(resolver, config.sourceClass, funcName, sourceProp, targetPropType)
             val mapperCall = if (annotationName == "AutoMapperCustomFromParent") {
                 "${config.sourceClass.simpleName.asString()}.$funcName(this)"
             } else {

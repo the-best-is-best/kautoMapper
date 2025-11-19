@@ -65,7 +65,9 @@ annotation class AutoMapper(
     val optIns: Array<String> = [],
     val ignoreKeys: Array<String> = [],
     val forcePublic: Boolean = false,
-    val defaultValues: Array<DefaultValue> = []
+    val defaultValues: Array<DefaultValue> = [],
+    val reverse: Boolean = false // available when use reverse version
+
 )
 ```
 
@@ -99,7 +101,10 @@ annotation class AutoMapperName(val to: String)
 Use custom mapping function.
 
 ```kotlin
-annotation class AutoMapperCustom(val mapperFunction: String)
+annotation class AutoMapperCustom(
+    val mapperFunction: String,
+    val reverseMapperFunction: String = "" // available when use reverse version
+)
 ```
 
 ---
@@ -109,7 +114,10 @@ annotation class AutoMapperCustom(val mapperFunction: String)
 Use a custom method defined inside the parent generated mapper class.
 
 ```kotlin
-annotation class AutoMapperCustomFromParent(val mapperFunction: String)
+annotation class AutoMapperCustomFromParent(
+    val mapperFunction: String,
+    val reverseMapperFunction: String = "" // available when use reverse version
+)
 ```
 
 ---

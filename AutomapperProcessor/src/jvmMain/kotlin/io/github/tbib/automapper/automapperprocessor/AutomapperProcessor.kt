@@ -13,6 +13,7 @@ import io.github.tbib.automapper.automapperprocessor.core.ImportHandler
 import io.github.tbib.automapper.automapperprocessor.core.MapperConfig
 import io.github.tbib.automapper.automapperprocessor.core.checkNullability
 import io.github.tbib.automapper.automapperprocessor.core.getCollectionArgumentInfo
+import io.github.tbib.automapper.automapperprocessor.core.validateCustomMapper
 import io.github.tbib.automapper.automapperprocessor.core.validateNestedReverseSupport
 import io.github.tbib.automapper.automapperprocessor.core.validatePropertyMatching
 import io.github.tbib.automapper.automapperprocessor.core.validateReverseMappingWithCustom

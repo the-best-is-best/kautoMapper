@@ -41,6 +41,11 @@ Add KSP processor:
 ksp(io.github.tbib.automapper:automapperProcessor:1.0.0-rc.1)
 ```
 
+To start generator
+
+```terminal
+./gradlew composeApp:kspCommonMainKotlinMetadata   
+```
 ---
 
 # 🧩 Available Annotations

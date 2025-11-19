@@ -22,7 +22,8 @@ import automapper.composeapp.generated.resources.compose_multiplatform
 import io.github.tbib.automapper.demo.dto.AddressDto
 import io.github.tbib.automapper.demo.dto.PhoneNumberDto
 import io.github.tbib.automapper.demo.dto.UserDto
-import io.github.tbib.automapper.demo.dto.UserDtoMapper
+import io.github.tbib.automapper.toOriginal
+import io.github.tbib.automapper.toSource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.time.Clock
@@ -44,7 +45,7 @@ fun App() {
         ) {
             Button(onClick = {
                 showContent = !showContent
-                val userModel = UserDtoMapper.map(
+                val userModel =
                     UserDto(
                         id = 1,
                         name = "test",
@@ -56,23 +57,14 @@ fun App() {
                                 number = "123456789",
                                 cityCode = "123456789",
                                 countryCode = "123456789",
-                                listAnotherNumber = mapOf(
-                                    1 to
-                                            PhoneNumberDto(
-                                                id = 2,
-                                                number = "123456789",
-                                                cityCode = "123456789",
-                                                countryCode = "123456789",
-                                                listAnotherNumber = mapOf()
-                                            )
-                                )
                             )
                         ),
-                        joinDate = (Clock.System.now() - (300 * 12).days)
-                    )
-                )
+                        joinDate = ((Clock.System.now() - (300 * 12).days).toString()),
+                        role = Roles.USER,
+                        status = Status.ACTIVE
+                    ).toSource()
                 println("user data: ${userModel.joinDate}")
-                println("user data reverse ${UserDtoMapper.mapReverse(userModel)}")
+                println("user data reverse ${userModel.toOriginal()}")
 
             }) {
                 Text("Click me!")

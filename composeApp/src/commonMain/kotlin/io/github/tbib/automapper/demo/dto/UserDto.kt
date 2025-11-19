@@ -3,6 +3,7 @@ package io.github.tbib.automapper.demo.dto
 import io.github.tbib.automapper.automapperannotations.AutoMapper
 import io.github.tbib.automapper.automapperannotations.AutoMapperAddOptIns
 import io.github.tbib.automapper.automapperannotations.AutoMapperCustom
+import io.github.tbib.automapper.automapperannotations.AutoMapperCustomFromParent
 import io.github.tbib.automapper.automapperannotations.AutoMapperName
 import io.github.tbib.automapper.demo.Roles
 import io.github.tbib.automapper.demo.Status
@@ -22,6 +23,7 @@ data class UserDto @OptIn(ExperimentalTime::class) constructor(
     val joinDate: String,
     @AutoMapperName("addres")
     val address: AddressDto,
+    @AutoMapperCustomFromParent("getEmail")
     val emails: List<String>,
     val phoneNumbers: List<PhoneNumberDto>,
     val role: Roles,
@@ -40,6 +42,11 @@ data class UserDto @OptIn(ExperimentalTime::class) constructor(
 
         fun joinDateReverseMapper(joinDate: LocalDateTime): String {
             return joinDate.toString()
+        }
+
+
+        fun getEmail(data: UserDto): List<String> {
+            return listOf("email1", "email2")
         }
     }
 }

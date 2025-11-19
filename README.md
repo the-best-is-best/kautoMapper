@@ -26,19 +26,24 @@ It includes:
 - Public/ Internal control for generated mapper
 
 ---
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.the-best-is-best/automapper-annotations)](https://central.sonatype.com/artifact/io.github.the-best-is-best/automapper-annotations)
+
+Compose Utils is available on `mavenCentral()`.
+
+___
 
 # 📦 Maven Central
 
 Add to `commonMain`:
 
 ```kotlin
-implementation("io.github.tbib.automapper:automapperannotations:1.0.0-rc.1")
+implementation("io.github.the-best-is-best.automapper:automapperannotations:1.0.0-rc.1")
 ```
 
 Add KSP processor:
 
 ```kotlin
-ksp(io.github.tbib.automapper:automapperProcessor:1.0.0-rc.1)
+ksp("io.github.the-best-is-best.automapper:automapperProcessor:1.0.0-rc.1")
 ```
 
 To start generator
@@ -46,6 +51,7 @@ To start generator
 ```terminal
 ./gradlew composeApp:kspCommonMainKotlinMetadata   
 ```
+
 ---
 
 # 🧩 Available Annotations
@@ -252,6 +258,6 @@ UserDtoMapper.toSource(source: UserDto): UserEntity
 
 ---
 
-# 🎉 Done!
+# 🎉 Done
 
 A clean, ready-to-use README for `automapperannotations`.

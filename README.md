@@ -156,6 +156,12 @@ kotlin {
 dependencies {
     ksp(projects.automapperProcessor)
 }
+
+ksp {
+    // auto mapper
+    arg("autoMapperVisibility", "false")
+}
+
 ```
 
 ---

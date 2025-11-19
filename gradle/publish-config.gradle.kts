@@ -1,0 +1,11 @@
+extra["groupId"] = "io.github.the-best-is-best"
+extra["version"] = "1.0.0-rc.1"
+extra["packageUrl"] = "https://github.com/the-best-is-best/kautoMapper"
+extra["issueUrl"] = "https://github.com/the-best-is-best/kautoMapper/issues"
+extra["connectionGit"] = "https://github.com/the-best-is-best/kautoMapper.git"
+extra["system"] = "GITHUB"
+extra["developerName"] = "Michelle Raouf"
+extra["developerNameId"] = "MichelleRaouf"
+extra["developerEmail"] = "eng.michelle.raouf@gmail.com"
+extra["packageDescription"] =
+    "This package provides annotation definitions for theAutoMapper KSP Processor, allowing automatic mapping generation between Kotlin classes for Kotlin Multiplatform, Android, and iOS."

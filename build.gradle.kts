@@ -10,7 +10,11 @@ plugins {
     alias(libs.plugins.androidKotlinMultiplatformLibrary) apply false
     alias(libs.plugins.androidLint) apply false
     alias(libs.plugins.jetbrainsKotlinJvm) apply false
+    alias(libs.plugins.comGoogleDevToolsKsp) apply false
+    alias(libs.plugins.mavenPublish) apply false
 
-    id("com.google.devtools.ksp") version "2.2.21-2.0.4" apply false
+}
 
+subprojects {
+    apply(from = "${rootProject.projectDir}/gradle/publish-config.gradle.kts")
 }

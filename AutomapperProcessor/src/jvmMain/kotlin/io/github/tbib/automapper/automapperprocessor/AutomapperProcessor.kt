@@ -90,7 +90,6 @@ class AutoMapperProcessor(
                     importHandler.addImportsFromDefaultValue(defaultValue, config.targetClass)
                     "$targetPropName = $defaultValue"
                 }
-
                 else -> {
                     val sourceProp = sourceProps.find { it.getMappedName() == targetPropName }
                         ?: throw IllegalStateException("Validated source property for '$targetPropName' not found.")
@@ -130,7 +129,7 @@ class AutoMapperProcessor(
             } else {
                 val qualifiedFunc =
                     if (funcName.contains('.')) funcName else "${config.sourceClass.simpleName.asString()}.$funcName"
-                importHandler.addImport(config.sourceClass.qualifiedName!!.asString())
+                if (!funcName.contains('.')) importHandler.addImport(config.sourceClass.qualifiedName!!.asString())
                 "$qualifiedFunc(this.$sourcePropName)"
             }
             return "$targetPropName = $mapperCall"
@@ -160,12 +159,10 @@ class AutoMapperProcessor(
                 val arraySuffix = if (sourcePropType.isArray()) ".toTypedArray()" else ""
                 "$targetPropName = $accessPrefix$nullSafeOp$mapTransform$arraySuffix"
             }
-
             sourcePropClassDecl?.hasAnnotation("AutoMapper") == true -> {
                 val nullSafeOp = if (sourceNullable) "?." else "."
                 "$targetPropName = $accessPrefix${nullSafeOp}toSource()"
             }
-
             else -> {
                 if (sourcePropClassDecl?.isCustomDataClass() == true) {
                     if (sourcePropType.isSameTypeAs(targetPropType)) return "$targetPropName = $accessPrefix"
@@ -253,7 +250,6 @@ class AutoMapperProcessor(
                     val arraySuffix = if (sourcePropType.isArray()) ".toTypedArray()" else ""
                     if (mapLogic.isNotEmpty()) "$accessPrefix$nullSafeOp$mapLogic$arraySuffix" else accessPrefix
                 }
-
                 (sourcePropType.declaration as? KSClassDeclaration)?.isCustomDataClass() == true -> "$accessPrefix${nullSafeOp}toOriginal()"
                 else -> accessPrefix
             }

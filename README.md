@@ -1,5 +1,6 @@
-# AutoMapper Annotations
-
+<div align="center">
+ <h1> AutoMapper Annotations <h1>
+</div>
 <div align="center">
 <a href="https://opensource.org/licenses/Apache-2.0"><img alt="License" src="https://img.shields.io/badge/License-Apache%202.0-blue.svg"/></a>
 <img src="https://img.shields.io/badge/Platform-Kotlin%20Multiplatform-blueviolet.svg" />
@@ -31,17 +32,23 @@ It includes:
 
 # 📦 Maven Central
 
-Add to `commonMain`:
+## Add to `commonMain`
 
+```
 implementation("io.github.the-best-is-best.automapper:automapperannotations:1.0.0-rc.1")
+```
 
 Add KSP processor:
 
+```
 ksp("io.github.the-best-is-best:automapper-processor:1.0.0-rc.1")
+```
 
-To start generator
+## To start generator
 
+```
 ./gradlew composeApp:kspCommonMainKotlinMetadata
+```
 
 ---
 
@@ -49,8 +56,9 @@ To start generator
 
 ## `@AutoMapper`
 
-Attach to a CLASS to generate a mapper.
+### Attach to a CLASS to generate a mapper
 
+```kotlin
 annotation class AutoMapper(
     val to: KClass<*>,
     val optIns: Array<String> = [],
@@ -59,12 +67,13 @@ annotation class AutoMapper(
     val defaultValues: Array<DefaultValue> = [],
     val reverse: Boolean = false // available when use reverse version
 )
+```
 
 ---
 
 ## `@DefaultValue`
 
-Adds default value if missing.
+### Adds default value if missing
 
 ```kotin
 annotation class DefaultValue(
@@ -77,7 +86,7 @@ annotation class DefaultValue(
 
 ## `@AutoMapperName`
 
-Renames property.
+### Renames property
 
 ```kotin
 
@@ -88,7 +97,7 @@ annotation class AutoMapperName(val to: String)
 
 ## `@AutoMapperCustom`
 
-Use custom mapping function.
+### Use custom mapping function
 
 ```kotin
 
@@ -102,7 +111,7 @@ annotation class AutoMapperCustom(
 
 ## `@AutoMapperCustomFromParent`
 
-Use a custom method defined inside the parent generated mapper class.
+### Use a custom method defined inside the parent generated mapper class
 
 ```kotin
 
@@ -116,9 +125,9 @@ annotation class AutoMapperCustomFromParent(
 
 ## `@AutoMapperAddOptIns`
 
-Adds opt-ins to the generated class.
+### Adds opt-ins to the generated class
 
-```kotin
+```gradle
 
 annotation class AutoMapperAddOptIns(val value: Array<String>)
 ```
@@ -127,7 +136,7 @@ annotation class AutoMapperAddOptIns(val value: Array<String>)
 
 # ⚙️ Setup (Kotlin Multiplatform + KSP)
 
-Add plugin:
+### Add plugin
 
 ```kotin
 
@@ -240,7 +249,7 @@ data class UserDto(
 }
 ```
 
-Generated mapper:
+### Generated mapper
 
 ```kotin
 

@@ -13,12 +13,12 @@ import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
-@AutoMapper(to = UserModel::class)
+@AutoMapper(to = UserModel::class, reverse = true)
 @AutoMapperAddOptIns(["kotlin.time.ExperimentalTime"])
 data class UserDto @OptIn(ExperimentalTime::class) constructor(
     val id: Int,
     val name: String,
-    @AutoMapperCustom("joinDateMapper")
+    @AutoMapperCustom("joinDateMapper", "joinDateReverseMapper")
     val joinDate: String,
     @AutoMapperName("addres")
     val address: AddressDto,
@@ -36,6 +36,10 @@ data class UserDto @OptIn(ExperimentalTime::class) constructor(
             } catch (e: Exception) {
                 Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
             }
+        }
+
+        fun joinDateReverseMapper(joinDate: LocalDateTime): String {
+            return joinDate.toString()
         }
     }
 }

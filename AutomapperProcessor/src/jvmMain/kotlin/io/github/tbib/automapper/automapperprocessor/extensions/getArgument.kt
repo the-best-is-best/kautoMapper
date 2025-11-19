@@ -52,14 +52,20 @@ internal fun KSPropertyDeclaration.getMappedName(): String {
     return nameAnnotation?.arguments?.firstOrNull()?.value as? String ?: this.simpleName.asString()
 }
 
-internal fun KSPropertyDeclaration.getCustomMapperAnnotation(): Pair<String, String>? {
+internal fun KSPropertyDeclaration.getCustomMapperAnnotation(): Triple<String, String, String>? {
     val annotation = this.annotations.firstOrNull {
         val name = it.shortName.asString()
         name == "AutoMapperCustom" || name == "AutoMapperCustomFromParent"
     } ?: return null
 
-    val funcName = annotation.arguments.first().value as? String
-    return if (funcName != null) annotation.shortName.asString() to funcName else null
+    val funcName = annotation.getArgument("mapperFunction", "")
+    val reverseFuncName = annotation.getArgument("reverseMapperFunction", "")
+
+    return if (funcName.isNotEmpty()) Triple(
+        annotation.shortName.asString(),
+        funcName,
+        reverseFuncName
+    ) else null
 }
 
 // Type-specific extensions

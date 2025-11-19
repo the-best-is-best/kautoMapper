@@ -16,23 +16,6 @@ import io.github.tbib.automapper.automapperprocessor.extensions.isMap
 import io.github.tbib.automapper.automapperprocessor.extensions.isSameTypeAs
 
 /**
- * Validates that reverse mapping is not enabled when @AutoMapperCustom is used.
- */
-fun validateReverseMappingWithCustom(
-    sourceProps: List<KSPropertyDeclaration>,
-    isReverseEnabled: Boolean
-) {
-    if (!isReverseEnabled) return
-
-    if (sourceProps.any { it.hasAnnotation("AutoMapperCustom") }) {
-        throw IllegalArgumentException(
-            "@AutoMapper(reverse=true) does not support properties with @AutoMapperCustom. " +
-                    "Please disable reverse mapping or remove the custom mapper annotation."
-        )
-    }
-}
-
-/**
  * Performs validation checks between source and target properties.
  */
 internal fun validatePropertyMatching(
@@ -189,7 +172,8 @@ internal fun checkNullability(
     }
 }
 
-internal fun validateCustomMapper(
+
+private fun validateCustomMapper(
     resolver: Resolver,
     sourceClass: KSClassDeclaration,
     funcName: String,
@@ -236,6 +220,77 @@ internal fun validateCustomMapper(
     val actualOutputType = func.returnType?.resolve()
 
     val errorLocation = "'${sourceClass.simpleName.asString()}.${sourceProp.simpleName.asString()}'"
+    val funcSignatureForError =
+        "fun ${func.simpleName.asString()}(${actualInputType?.declaration?.simpleName?.asString() ?: ""})" +
+                ": ${actualOutputType?.declaration?.simpleName?.asString() ?: "Unit"}"
+
+    // Validate the input parameter
+    if (func.parameters.size != 1 || actualInputType == null || !actualInputType.isSameTypeAs(
+            expectedInputType
+        )
+    ) {
+        val expectedInputTypeName = expectedInputType.declaration.simpleName.asString()
+        throw IllegalArgumentException(
+            "@AutoMapperCustom error on $errorLocation: " +
+                    "Function '$funcName' has an invalid parameter. Expected input type '($expectedInputTypeName)', but found signature '$funcSignatureForError'."
+        )
+    }
+
+    // Validate the return type
+    if (actualOutputType == null || !actualOutputType.isSameTypeAs(expectedOutputType)) {
+        val expectedOutputTypeName = expectedOutputType.declaration.simpleName.asString()
+        throw IllegalArgumentException(
+            "@AutoMapperCustom error on $errorLocation: " +
+                    "Function '$funcName' has an invalid return type. Expected return type '$expectedOutputTypeName', but found signature '$funcSignatureForError'."
+        )
+    }
+}
+
+internal fun validateCustomReverseMapper(
+    resolver: Resolver,
+    sourceClass: KSClassDeclaration,
+    funcName: String,
+    targetProp: KSPropertyDeclaration,
+    sourcePropType: KSType
+) {
+    var func: KSFunctionDeclaration? = null
+
+    // Strategy 1: Look in the companion object of the source class
+    val companionObject = sourceClass.declarations
+        .filterIsInstance<KSClassDeclaration>()
+        .firstOrNull { it.isCompanionObject }
+
+    if (companionObject != null) {
+        func = companionObject.getDeclaredFunctions()
+            .firstOrNull { it.simpleName.asString() == funcName }
+    }
+
+    // Strategy 2: If not in companion, look for a top-level function.
+    if (func == null) {
+        val qualifiedFuncName = if ('.' in funcName) {
+            funcName
+        } else {
+            "${sourceClass.packageName.asString()}.$funcName"
+        }
+
+        func = resolver.getFunctionDeclarationsByName(
+            resolver.getKSNameFromString(qualifiedFuncName),
+            includeTopLevel = true
+        ).firstOrNull()
+    }
+
+    if (func == null) {
+        throw IllegalArgumentException("@AutoMapperCustom error on '${sourceClass.simpleName.asString()}.${targetProp.simpleName.asString()}': Function '$funcName' not found in companion object or as a top-level function.")
+    }
+
+    // --- Validation Logic ---
+    val expectedInputType = targetProp.type.resolve()
+    val actualInputType = func.parameters.firstOrNull()?.type?.resolve()
+
+    val expectedOutputType = sourcePropType
+    val actualOutputType = func.returnType?.resolve()
+
+    val errorLocation = "'${sourceClass.simpleName.asString()}.${targetProp.simpleName.asString()}'"
     val funcSignatureForError =
         "fun ${func.simpleName.asString()}(${actualInputType?.declaration?.simpleName?.asString() ?: ""})" +
                 ": ${actualOutputType?.declaration?.simpleName?.asString() ?: "Unit"}"

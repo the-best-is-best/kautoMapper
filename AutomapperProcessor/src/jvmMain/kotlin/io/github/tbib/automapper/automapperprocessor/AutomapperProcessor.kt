@@ -13,10 +13,8 @@ import io.github.tbib.automapper.automapperprocessor.core.ImportHandler
 import io.github.tbib.automapper.automapperprocessor.core.MapperConfig
 import io.github.tbib.automapper.automapperprocessor.core.checkNullability
 import io.github.tbib.automapper.automapperprocessor.core.getCollectionArgumentInfo
-import io.github.tbib.automapper.automapperprocessor.core.validateCustomMapper
 import io.github.tbib.automapper.automapperprocessor.core.validateNestedReverseSupport
 import io.github.tbib.automapper.automapperprocessor.core.validatePropertyMatching
-import io.github.tbib.automapper.automapperprocessor.core.validateReverseMappingWithCustom
 import io.github.tbib.automapper.automapperprocessor.extensions.getCustomMapperAnnotation
 import io.github.tbib.automapper.automapperprocessor.extensions.getMappedName
 import io.github.tbib.automapper.automapperprocessor.extensions.getPrimaryConstructorProperties
@@ -75,7 +73,6 @@ class AutoMapperProcessor(
         val targetProps = targetClass.getPrimaryConstructorProperties()
 
         // 3. Perform validation checks.
-        validateReverseMappingWithCustom(sourceProps, config.isReverseEnabled)
         validatePropertyMatching(sourceClass, targetClass, sourceProps, targetProps, config, logger)
 
         // 4. Generate the mapping logic.
@@ -83,7 +80,7 @@ class AutoMapperProcessor(
         val forwardMappingLines =
             generateForwardMappingLines(sourceProps, targetProps, config, importHandler, resolver)
         val reverseMappingLines = if (config.isReverseEnabled) {
-            generateReverseMappingLines(sourceProps, targetProps, config)
+            generateReverseMappingLines(sourceProps, targetProps, config, resolver)
         } else null
 
         // 5. Write the generated file.
@@ -148,7 +145,7 @@ class AutoMapperProcessor(
         // 1. Handle custom mappers first, as they override all other logic.
         val customMapper = sourceProp.getCustomMapperAnnotation()
         if (customMapper != null) {
-            val (annotationName, funcName) = customMapper
+            val (annotationName, funcName, _) = customMapper
             validateCustomMapper(resolver, config.sourceClass, funcName, sourceProp, targetPropType)
             val mapperCall = if (annotationName == "AutoMapperCustomFromParent") {
                 "${config.sourceClass.simpleName.asString()}.$funcName(this)"
@@ -237,6 +234,7 @@ class AutoMapperProcessor(
         sourceProps: List<KSPropertyDeclaration>,
         targetProps: List<KSPropertyDeclaration>,
         config: MapperConfig,
+        resolver: Resolver
     ): List<String> {
         // Validate that all nested types for reverse mapping are correctly annotated.
         validateNestedReverseSupport(sourceProps, config.sourceClass.simpleName.asString())
@@ -250,9 +248,38 @@ class AutoMapperProcessor(
                 ?: return@mapNotNull null // Ignored if no match in target.
 
             val sourcePropType = sourceProp.type.resolve()
+            val targetPropType = targetProp.type.resolve()
             val isNullable = sourcePropType.nullability == Nullability.NULLABLE
             val nullSafeOp = if (isNullable) "?." else "."
             val accessPrefix = "this.${targetProp.simpleName.asString()}"
+
+            val customMapper = sourceProp.getCustomMapperAnnotation()
+            if (customMapper != null) {
+                val (annotationName, _, reverseFuncName) = customMapper
+                if (reverseFuncName.isNotEmpty()) {
+                    validateCustomReverseMapper(
+                        resolver,
+                        config.sourceClass,
+                        reverseFuncName,
+                        targetProp,
+                        sourcePropType
+                    )
+                    val mapperCall = if (annotationName == "AutoMapperCustomFromParent") {
+                        "${config.sourceClass.simpleName.asString()}.$reverseFuncName(this)"
+                    } else {
+                        val qualifiedFunc =
+                            if (reverseFuncName.contains('.')) reverseFuncName else "${config.sourceClass.simpleName.asString()}.$reverseFuncName"
+                        "$qualifiedFunc(this.${targetProp.simpleName.asString()})"
+                    }
+                    return@mapNotNull "$sourcePropName = $mapperCall"
+                }
+                if (!sourcePropType.isSameTypeAs(targetPropType)) {
+                    throw IllegalArgumentException(
+                        "@AutoMapperCustom error on '${config.sourceClass.simpleName.asString()}.${sourceProp.simpleName.asString()}': " +
+                                "A custom forward mapper was provided, but the types are different. You must provide a 'reverseMapperFunction' for reverse mapping."
+                    )
+                }
+            }
 
             val assignment = when {
                 sourcePropType.isList() || sourcePropType.isArray() || sourcePropType.isMap() -> {

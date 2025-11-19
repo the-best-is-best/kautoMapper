@@ -31,14 +31,16 @@ annotation class AutoMapperName(
 @Target(AnnotationTarget.PROPERTY)
 @Retention(AnnotationRetention.SOURCE)
 annotation class AutoMapperCustom(
-    val mapperFunction: String
+    val mapperFunction: String,
+    val reverseMapperFunction: String = ""
 )
 
 
 @Target(AnnotationTarget.PROPERTY)
 @Retention(AnnotationRetention.SOURCE)
 annotation class AutoMapperCustomFromParent(
-    val mapperFunction: String
+    val mapperFunction: String,
+    val reverseMapperFunction: String = ""
 )
 
 @Target(AnnotationTarget.CLASS)
@@ -46,8 +48,3 @@ annotation class AutoMapperCustomFromParent(
 annotation class AutoMapperAddOptIns(
     val value: Array<String>
 )
-
-
-
-
-

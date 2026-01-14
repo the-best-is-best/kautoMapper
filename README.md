@@ -35,7 +35,7 @@ It includes:
 ## Add to `commonMain`
 
 ```
-implementation("io.github.the-best-is-best.automapper:automapperannotations:1.0.0-rc.1")
+implementation("io.github.the-best-is-best:automapper-annotations:1.0.0-rc.1")
 ```
 
 Add KSP processor:

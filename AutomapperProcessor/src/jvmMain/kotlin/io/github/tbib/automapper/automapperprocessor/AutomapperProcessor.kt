@@ -82,10 +82,9 @@ class AutoMapperProcessor(
         resolver: Resolver
     ): List<String> {
         return targetProps.map { targetProp ->
-            val targetPropName = targetProp.simpleName.asString()
-            when {
-                targetPropName in config.ignoreKeys -> "$targetPropName = null"
-                targetPropName in config.defaultValues -> {
+            when (val targetPropName = targetProp.simpleName.asString()) {
+                in config.ignoreKeys -> "$targetPropName = null"
+                in config.defaultValues -> {
                     val defaultValue = config.defaultValues[targetPropName]!!
                     importHandler.addImportsFromDefaultValue(defaultValue, config.targetClass)
                     "$targetPropName = $defaultValue"

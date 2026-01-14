@@ -39,9 +39,17 @@ internal data class MapperConfig(
                 else -> "internal"
             }
 
-            val defaultValuesList = autoMapperAnnotation.arguments
+            val rawValue = autoMapperAnnotation.arguments
                 .firstOrNull { it.name?.asString() == "defaultValues" }
-                ?.value as? List<KSAnnotation> ?: emptyList()
+                ?.value
+
+            val defaultValuesList =
+                if (rawValue is List<*> && rawValue.all { it is KSAnnotation }) {
+                    @Suppress("UNCHECKED_CAST")
+                    rawValue as List<KSAnnotation>
+                } else {
+                    emptyList()
+                }
 
             val defaultValues = defaultValuesList.mapNotNull { anno ->
                 val key = anno.getArgument<String?>("key", null)

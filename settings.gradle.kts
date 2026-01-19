@@ -28,6 +28,7 @@ dependencyResolutionManagement {
     }
 }
 
-include(":composeApp")
+include(":sharedUI")
 include(":AutomapperAnnotations")
 include(":AutomapperProcessor")
+include("androidSimple")

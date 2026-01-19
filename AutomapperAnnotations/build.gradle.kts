@@ -2,7 +2,7 @@ import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform.getCurr
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.androidLibrary) // Use androidLibrary for a library module
+    alias(libs.plugins.androidKotlinMultiplatformLibrary) // Use androidLibrary for a library module
     alias(libs.plugins.mavenPublish)
     id("maven-publish")
     id("signing")
@@ -80,8 +80,8 @@ signing {
 
 
 kotlin {
-    // 1. Android Target
-    androidTarget()
+   jvmToolchain(17)
+
 
     // 2. Apple Targets (iOS, macOS, watchOS, tvOS)
     val xcfName = "AutomapperAnnotationsKit"
@@ -126,15 +126,13 @@ kotlin {
             implementation(libs.kotlin.test)
         }
     }
-}
-android {
-    // Minimal Android configuration needed for a library
-    namespace = extra["packageNameSpace"].toString()
-    compileSdk = 36
-    defaultConfig {
+
+    android {
+        // Minimal Android configuration needed for a library
+        namespace = project.extra["packageNameSpace"].toString()
         minSdk = 24
-    }
-    compileOptions {
-        // You don't need to specify source/target compatibility for a KMP library
+        compileSdk = 36
+
     }
 }
+

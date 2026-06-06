@@ -8,11 +8,11 @@ plugins {
 
 android {
     namespace = "org.company.app.androidApp"
-    compileSdk = 36
-
+    compileSdk = libs.versions.android.compileSdk.get().toInt()
     defaultConfig {
-        minSdk = 24
-        targetSdk = 36
+        minSdk = libs.versions.android.minSdk.get().toInt()
+
+        targetSdk = libs.versions.android.targetSdk.get().toInt()
 
         applicationId = "org.company.app.androidApp"
         versionCode = 1

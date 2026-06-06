@@ -86,7 +86,6 @@ kotlin {
     // 2. Apple Targets (iOS, macOS, watchOS, tvOS)
     val xcfName = "AutomapperAnnotationsKit"
     listOf(
-        iosX64(),
         iosArm64(),
         iosSimulatorArm64(),
         macosX64(),
@@ -130,8 +129,8 @@ kotlin {
     android {
         // Minimal Android configuration needed for a library
         namespace = project.extra["packageNameSpace"].toString()
-        minSdk = 24
-        compileSdk = 36
+        minSdk = libs.versions.android.minSdk.get().toInt()
+        compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     }
 }

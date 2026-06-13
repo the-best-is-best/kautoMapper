@@ -19,9 +19,9 @@ It includes:
 - Auto mapping between data models
 - Property renaming
 - Default values
-- Custom mapping functions
+- **Convention-based custom mapping (No annotations needed)**
+- Multi-target mapping (Map one class to multiple entities)
 - Add OptIns to generated class
-- Custom mapping from parent
 - Public/Internal control for generated mapper
 
 ---
@@ -34,19 +34,19 @@ It includes:
 
 ## Add to `commonMain`
 
-```
-implementation("io.github.the-best-is-best:automapper-annotations:1.0.0-rc.1")
+```kotlin
+implementation("io.github.the-best-is-best:automapper-annotations:2.0.0-rc.1")
 ```
 
 Add KSP processor:
 
-```
-ksp("io.github.the-best-is-best:automapper-processor:1.0.0-rc.1")
+```kotlin
+ksp("io.github.the-best-is-best:automapper-processor:2.0.0-rc.1")
 ```
 
 ## To start generator
 
-```
+```bash
 ./gradlew composeApp:kspCommonMainKotlinMetadata
 ```
 
@@ -56,9 +56,10 @@ ksp("io.github.the-best-is-best:automapper-processor:1.0.0-rc.1")
 
 ## `@AutoMapper`
 
-### Attach to a CLASS to generate a mapper
+### Attach to a CLASS to generate a mapper. This annotation is repeatable.
 
 ```kotlin
+@Repeatable
 annotation class AutoMapper(
     val to: KClass<*>,
     val useClassNameInMapperFunc: Boolean = false,
@@ -76,7 +77,7 @@ annotation class AutoMapper(
 
 ### Adds default value if missing
 
-```kotin
+```kotlin
 annotation class DefaultValue(
     val key: String,
     val value: String
@@ -89,37 +90,8 @@ annotation class DefaultValue(
 
 ### Renames property
 
-```kotin
-
+```kotlin
 annotation class AutoMapperName(val to: String)
-```
-
----
-
-## `@AutoMapperCustom`
-
-### Use custom mapping function
-
-```kotin
-
-annotation class AutoMapperCustom(
-    val mapperFunction: String,
-    val reverseMapperFunction: String = "" // available when use reverse version
-)
-```
-
----
-
-## `@AutoMapperCustomFromParent`
-
-### Use a custom method defined inside the parent generated mapper class
-
-```kotin
-
-annotation class AutoMapperCustomFromParent(
-    val mapperFunction: String,
-    val reverseMapperFunction: String = "" // available when use reverse version
-)
 ```
 
 ---
@@ -128,9 +100,107 @@ annotation class AutoMapperCustomFromParent(
 
 ### Adds opt-ins to the generated class
 
-```gradle
-
+```kotlin
 annotation class AutoMapperAddOptIns(val value: Array<String>)
+```
+
+---
+
+# 🛠️ Custom Mapping (Convention Based)
+
+You can define custom mapping logic in your class or companion object without any property
+annotations. The processor will automatically find these functions based on their names and types.
+
+### 1. Simple Property Mapping
+
+Use `map[PropertyName]` for forward and `reverseMap[PropertyName]` for reverse.
+
+```kotlin
+fun mapJoinDate(value: String): LocalDateTime
+fun reverseMapJoinDate(value: LocalDateTime): String
+```
+
+### 2. Mapping from Parent (Advanced)
+
+If the function takes the **Source Class** itself as a parameter, it acts as a "from parent" mapper.
+
+```kotlin
+fun mapEmails(data: UserDto): List<String>
+```
+
+### 3. Target-Specific Mapping
+
+If you have multiple `@AutoMapper` targets, you can specify which target a function applies to using
+`map[PropertyName]To[TargetClassName]`.
+
+```kotlin
+@AutoMapper(to = UserModel::class)
+@AutoMapper(to = UserEntity::class)
+data class UserDto(...) {
+  companion object {
+    // Only used when mapping to UserEntity
+    fun mapJoinDateToUserEntity(value: String): Long
+
+    // Used for UserModel (fallback)
+    fun mapJoinDate(value: String): LocalDateTime
+  }
+}
+```
+
+---
+
+# 🧪 Example Usage
+
+### Multi-Target Mapping
+
+```kotlin
+@AutoMapper(to = UserModel::class, reverse = true, useClassNameInMapperFunc = true)
+@AutoMapper(to = UserEntity::class, reverse = true)
+@AutoMapperAddOptIns(["kotlin.time.ExperimentalTime"])
+data class UserDto @OptIn(ExperimentalTime::class) constructor(
+  val id: Int,
+  val name: String,
+  val joinDate: String,
+
+  @AutoMapperName("addres")
+  val address: AddressDto,
+
+  val emails: List<String>,
+  val role: Roles,
+  val status: Status
+) {
+  companion object {
+    // Forward: String -> LocalDateTime (Used by UserModel)
+    fun mapJoinDate(joinDate: String): LocalDateTime = LocalDateTime.parse(joinDate)
+
+    // Forward: String -> Long (Specifically for UserEntity)
+    fun mapJoinDateToUserEntity(joinDate: String): Long =
+      LocalDateTime.parse(joinDate).toInstant(TimeZone.UTC).toEpochMilliseconds()
+
+    // Reverse: LocalDateTime -> String (Used by UserModel)
+    fun reverseMapJoinDate(joinDate: LocalDateTime): String = joinDate.toString()
+
+    // Reverse: Long -> String (Used by UserEntity)
+    fun reverseMapJoinDateToUserEntity(joinDate: Long): String = ""
+
+    // Custom logic using the whole parent object
+    fun mapEmails(data: UserDto): List<String> = listOf("email1", "email2")
+    }
+}
+```
+
+### Generated Mapper Usage
+
+```kotlin
+val userDto = UserDto(...)
+
+// Forward mapping
+val model: UserModel = userDto.toUserModel()
+val entity: UserEntity = userDto.toUserEntity()
+
+// Reverse mapping
+val dtoFromModel: UserDto = model.toUserDto()
+val dtoFromEntity: UserDto = entity.toUserDto()
 ```
 
 ---
@@ -139,137 +209,36 @@ annotation class AutoMapperAddOptIns(val value: Array<String>)
 
 ### Add plugin
 
-```kotin
-
+```kotlin
 id("com.google.devtools.ksp")
 ```
 
----
+### Configure KSP + KMP
 
-## Configure KSP + KMP
-
-```kotin
+```kotlin
 kotlin {
-    androidTarget {
-        compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
-    }
+  // ... targets configuration (android, ios, etc.)
 
-    listOf(iosArm64(), iosSimulatorArm64()).forEach { ios ->
-        ios.binaries.framework {
-            baseName = "ComposeApp"
-            isStatic = true
-        }
+  sourceSets.named("commonMain").configure {
+    // Ensure generated code is visible
+    kotlin.srcDir("build/generated/ksp/metadata/commonMain/kotlin")
     }
-
-    sourceSets.named("commonMain").configure {
-        kotlin.srcDir("build/generated/ksp/metadata/commonMain/kotlin")
-    }
-    
-}
-
-dependencies {
-    ksp(projects.automapperProcessor)
 }
 
 ksp {
-    // auto mapper
-    arg("autoMapperVisibility", "false")
+  // Optional: make mappers internal by default
+  arg("autoMapperVisibility", "false")
 }
-```
-
----
-
-# 🔧 Force metadata generation before all KSP tasks
-
-```gradle
-project.tasks.withType(KotlinCompilationTask::class.java).configureEach {
-    if (name != "kspCommonMainKotlinMetadata") {
-        dependsOn("kspCommonMainKotlinMetadata")
-    }
-}
-```
-
----
-
-# 🛑 Disable multiple KSP tasks (Required for KMM)
-
-```gradle
-project.tasks.withType(KspAATask::class.java).configureEach {
-    if (name != "kspCommonMainKotlinMetadata") {
-        if (name == "kspDebugKotlinAndroid") enabled = false
-        if (name == "kspReleaseKotlinAndroid") enabled = false
-        if (name == "kspKotlinIosSimulatorArm64") enabled = false
-        if (name == "kspKotlinIosX64") enabled = false
-        if (name == "kspKotlinIosArm64") enabled = false
-        dependsOn("kspCommonMainKotlinMetadata")
-    }
-}
-```
-
----
-
-# 🧪 Example Usage
-
-### Model → Entity Mapping
-
-```kotin
-
-@AutoMapper(
-    to = UserEntity::class,
-    reverse = true,
-    ignoreKeys = ["internalId"],
-    forcePublic = true,
-    optIns = ["kotlin.ExperimentalStdlibApi"],
-    defaultValues = [
-        DefaultValue("role", "Role()")
-    ]
-)
-data class UserDto(
-    val id: String,
-    val name: String,
-
-    @AutoMapperName(to = "createdAt")
-    val joinDate: Long,
-
-    @AutoMapperCustom(mapperFunction = "mapStatus")
-    val status: Status,
-
-    @AutoMapperCustomFromParent(mapperFunction = "mapRole")
-    val role: Role
-
-) {
-    companion object {
-        fun mapStatus(data: Status) {
-            // do ur mapper need
-        }
-
-        fun mapRole(data: UserDto) {
-
-        }
-    }
-}
-```
-
-### Generated mapper
-
-```kotlin
-// If useClassNameInMapperFunc = false (default)
-val entity = userDto.toTarget()
-val dto = userEntity.toSource() // available if reverse = true
-
-// If useClassNameInMapperFunc = true
-val entity = userDto.toUserEntity()
-val dto = userEntity.toUserDto() // available if reverse = true
 ```
 
 ---
 
 # 📍 Notes
 
-- Generated code path:  
-  build/generated/ksp/metadata/commonMain/kotlin
-- Works with: Android, iOS, Kotlin JVM & Native
-- No runtime overhead — compile-time generated
+- **Generated code path**: `build/generated/ksp/metadata/commonMain/kotlin`
+- **Multi-Mapper Support**: Use `useClassNameInMapperFunc = true` to avoid name collisions in
+  extension functions.
+- **Zero Runtime Overhead**: Everything is generated at compile-time.
 
 ---
 

@@ -5,6 +5,7 @@ import io.github.tbib.automapper.automapperannotations.AutoMapperAddOptIns
 import io.github.tbib.automapper.automapperannotations.AutoMapperName
 import io.github.tbib.automapper.demo.Roles
 import io.github.tbib.automapper.demo.Status
+import io.github.tbib.automapper.demo.model.AddressModel
 import io.github.tbib.automapper.demo.model.UserEntity
 import io.github.tbib.automapper.demo.model.UserModel
 import kotlinx.datetime.LocalDateTime
@@ -37,6 +38,14 @@ data class UserDto @OptIn(ExperimentalTime::class) constructor(
             } catch (e: Exception) {
                 Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
             }
+        }
+
+        @OptIn(ExperimentalTime::class)
+        fun mapAddress(data: AddressDto): AddressModel {
+            return AddressModel(
+                id = data.id,
+                streets = data.street
+            )
         }
 
         fun reverseMapJoinDate(joinDate: LocalDateTime): String {

@@ -12,6 +12,7 @@ import io.github.tbib.automapper.automapperprocessor.extensions.toOptInString
 internal data class MapperConfig(
     val sourceClass: KSClassDeclaration,
     val targetClass: KSClassDeclaration,
+    val useClassNameInMapperFunc: Boolean,
     val isReverseEnabled: Boolean,
     val visibilityModifier: String,
     val defaultValues: Map<String, String>,
@@ -22,6 +23,11 @@ internal data class MapperConfig(
     val mapperName: String = "${sourceClass.simpleName.asString()}Mapper"
     val optInAnnotationString: String = optInClasses.toOptInString()
 
+    val mapFunctionName: String =
+        if (useClassNameInMapperFunc) "to${targetClass.simpleName.asString()}" else "toTarget"
+    val reverseMapFunctionName: String =
+        if (useClassNameInMapperFunc) "to${sourceClass.simpleName.asString()}" else "toSource"
+
 
     companion object {
         fun from(sourceClass: KSClassDeclaration, autoMapperVisibility: Boolean): MapperConfig {
@@ -31,6 +37,8 @@ internal data class MapperConfig(
             val targetClass = autoMapperAnnotation.getTargetClass()
             val forcePublic = autoMapperAnnotation.getArgument("forcePublic", false)
             val isReverseEnabled = autoMapperAnnotation.getArgument("reverse", false)
+            val useClassNameInMapperFunc =
+                autoMapperAnnotation.getArgument("useClassNameInMapperFunc", false)
             val ignoreKeys =
                 autoMapperAnnotation.getArgument<List<String>>("ignoreKeys", emptyList()).toSet()
 
@@ -63,6 +71,7 @@ internal data class MapperConfig(
             return MapperConfig(
                 sourceClass = sourceClass,
                 targetClass = targetClass,
+                useClassNameInMapperFunc = useClassNameInMapperFunc,
                 isReverseEnabled = isReverseEnabled,
                 visibilityModifier = visibility,
                 defaultValues = defaultValues,

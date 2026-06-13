@@ -14,8 +14,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import io.github.tbib.automapper.demo.dto.AddressDto
 import io.github.tbib.automapper.demo.dto.PhoneNumberDto
 import io.github.tbib.automapper.demo.dto.UserDto
-import io.github.tbib.automapper.toOriginal
-import io.github.tbib.automapper.toSource
+import io.github.tbib.automapper.toUserDto
+import io.github.tbib.automapper.toUserModel
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 
@@ -48,9 +48,9 @@ fun App() {
                         joinDate = ((Clock.System.now() - (300 * 12).days).toString()),
                         role = Roles.USER,
                         status = Status.ACTIVE
-                    ).toSource()
+                    ).toUserModel()
                 println("user data: ${userModel.joinDate}")
-                println("user data reverse ${userModel.toOriginal()}")
+                println("user data reverse ${userModel.toUserDto()}")
 
             }) {
                 Text("Click me!")

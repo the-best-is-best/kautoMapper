@@ -7,6 +7,7 @@ import kotlin.reflect.KClass
 @Retention(AnnotationRetention.SOURCE)
 annotation class AutoMapper(
     val to: KClass<*>,
+    val useClassNameInMapperFunc: Boolean = false,
     val optIns: Array<String> = [],
     val ignoreKeys: Array<String> = [],
     val forcePublic: Boolean = false,

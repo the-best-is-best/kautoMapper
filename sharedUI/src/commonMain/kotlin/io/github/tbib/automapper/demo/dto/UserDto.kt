@@ -14,7 +14,7 @@ import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
-@AutoMapper(to = UserModel::class, reverse = true)
+@AutoMapper(to = UserModel::class, reverse = true, useClassNameInMapperFunc = true)
 @AutoMapperAddOptIns(["kotlin.time.ExperimentalTime"])
 data class UserDto @OptIn(ExperimentalTime::class) constructor(
     val id: Int,

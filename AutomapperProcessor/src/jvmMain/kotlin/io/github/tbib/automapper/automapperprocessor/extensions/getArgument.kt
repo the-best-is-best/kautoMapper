@@ -37,6 +37,22 @@ internal fun KSClassDeclaration.isCustomDataClass(): Boolean {
     return fqn != null && !fqn.startsWith("kotlin.") && !fqn.startsWith("java.")
 }
 
+internal fun KSClassDeclaration.getMapperFunctionName(): String {
+    val autoMapperAnnotation =
+        this.annotations.firstOrNull { it.shortName.asString() == "AutoMapper" }
+            ?: return "toTarget"
+    val useClassName = autoMapperAnnotation.getArgument("useClassNameInMapperFunc", false)
+    return if (useClassName) "to${autoMapperAnnotation.getTargetClass().simpleName.asString()}" else "toTarget"
+}
+
+internal fun KSClassDeclaration.getReverseMapperFunctionName(): String {
+    val autoMapperAnnotation =
+        this.annotations.firstOrNull { it.shortName.asString() == "AutoMapper" }
+            ?: return "toSource"
+    val useClassName = autoMapperAnnotation.getArgument("useClassNameInMapperFunc", false)
+    return if (useClassName) "to${this.simpleName.asString()}" else "toSource"
+}
+
 internal fun List<String>.toOptInString(): String {
     if (this.isEmpty()) return ""
     return "@file:OptIn(" + this.joinToString { "${it.substringAfterLast('.')}::class" } + ")"

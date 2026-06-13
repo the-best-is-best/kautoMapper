@@ -61,11 +61,12 @@ ksp("io.github.the-best-is-best:automapper-processor:1.0.0-rc.1")
 ```kotlin
 annotation class AutoMapper(
     val to: KClass<*>,
+    val useClassNameInMapperFunc: Boolean = false,
     val optIns: Array<String> = [],
     val ignoreKeys: Array<String> = [],
     val forcePublic: Boolean = false,
     val defaultValues: Array<DefaultValue> = [],
-    val reverse: Boolean = false // available when use reverse version
+    val reverse: Boolean = false
 )
 ```
 
@@ -215,7 +216,7 @@ project.tasks.withType(KspAATask::class.java).configureEach {
 
 @AutoMapper(
     to = UserEntity::class,
-    reverse: true, // this need use version in the name containe reverse
+    reverse = true,
     ignoreKeys = ["internalId"],
     forcePublic = true,
     optIns = ["kotlin.ExperimentalStdlibApi"],
@@ -251,9 +252,14 @@ data class UserDto(
 
 ### Generated mapper
 
-```kotin
+```kotlin
+// If useClassNameInMapperFunc = false (default)
+val entity = userDto.toTarget()
+val dto = userEntity.toSource() // available if reverse = true
 
-UserDtoMapper.toSource(source: UserDto): UserEntity
+// If useClassNameInMapperFunc = true
+val entity = userDto.toUserEntity()
+val dto = userEntity.toUserDto() // available if reverse = true
 ```
 
 ---

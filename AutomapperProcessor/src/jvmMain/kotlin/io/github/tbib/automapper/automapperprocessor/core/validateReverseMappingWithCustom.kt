@@ -123,7 +123,7 @@ internal fun checkNullability(
             How to fix this:
             1. Make the target property nullable: 'val ${targetPropName}: ${targetPropType.declaration.simpleName.asString()}?'
             2. Provide a default value: defaultValues = [DefaultValue(key = "$targetPropName", value = "YourDefaultValue")]
-            3. Use @AutoMapperCustom to handle the null case manually.
+            3. Use convention-based mapping: Provide a function 'map${targetPropName.replaceFirstChar { it.uppercase() }}' or 'map${targetPropName.replaceFirstChar { it.uppercase() }}To${config.targetClass.simpleName.asString()}' in the companion object.
             4. Make the source property '${sourceProp.simpleName.asString()}' non-nullable.
             """.trimIndent()
         )
@@ -163,7 +163,7 @@ internal fun validateCustomMapper(
     sourceProp: KSPropertyDeclaration, targetPropType: KSType, annotationName: String
 ) {
     val func = findFunction(resolver, sourceClass, funcName) ?: throw IllegalArgumentException(
-        "@AutoMapperCustom error on '${sourceClass.simpleName.asString()}.${sourceProp.simpleName.asString()}': Function '$funcName' not found."
+        "Custom mapper error on '${sourceClass.simpleName.asString()}.${sourceProp.simpleName.asString()}': Function '$funcName' not found."
     )
 
     val expectedInputType =
@@ -181,14 +181,14 @@ internal fun validateCustomMapper(
     ) {
         val expectedInputTypeName = expectedInputType.declaration.simpleName.asString()
         throw IllegalArgumentException(
-            "@AutoMapperCustom error on $errorLocation: Function '$funcName' has an invalid parameter. Expected '($expectedInputTypeName)', found '$funcSignature'."
+            "Custom mapper error on $errorLocation: Function '$funcName' has an invalid parameter. Expected '($expectedInputTypeName)', found '$funcSignature'."
         )
     }
 
     if (actualOutputType == null || !actualOutputType.isSameTypeAs(targetPropType)) {
         val expectedOutputTypeName = targetPropType.declaration.simpleName.asString()
         throw IllegalArgumentException(
-            "@AutoMapperCustom error on $errorLocation: Function '$funcName' has an invalid return type. Expected '$expectedOutputTypeName', found '$funcSignature'."
+            "Custom mapper error on $errorLocation: Function '$funcName' has an invalid return type. Expected '$expectedOutputTypeName', found '$funcSignature'."
         )
     }
 }
@@ -203,7 +203,7 @@ internal fun validateCustomReverseMapper(
     annotationName: String
 ) {
     val func = findFunction(resolver, sourceClass, funcName) ?: throw IllegalArgumentException(
-        "@AutoMapperCustomReverse error on '${sourceClass.simpleName.asString()}.${targetProp.simpleName.asString()}': Function '$funcName' not found."
+        "Custom reverse mapper error on '${sourceClass.simpleName.asString()}.${targetProp.simpleName.asString()}': Function '$funcName' not found."
     )
 
     val expectedInputType =
@@ -222,14 +222,14 @@ internal fun validateCustomReverseMapper(
     ) {
         val expectedInputTypeName = expectedInputType.declaration.simpleName.asString()
         throw IllegalArgumentException(
-            "@AutoMapperCustomReverse error on $errorLocation: Function '$funcName' has an invalid parameter. Expected '($expectedInputTypeName)', found '$funcSignature'."
+            "Custom reverse mapper error on $errorLocation: Function '$funcName' has an invalid parameter. Expected '($expectedInputTypeName)', found '$funcSignature'."
         )
     }
 
     if (actualOutputType == null || !actualOutputType.isSameTypeAs(expectedOutputType)) {
         val expectedOutputTypeName = expectedOutputType.declaration.simpleName.asString()
         throw IllegalArgumentException(
-            "@AutoMapperCustomReverse error on $errorLocation: Function '$funcName' has an invalid return type. Expected '$expectedOutputTypeName', found '$funcSignature'."
+            "Custom reverse mapper error on $errorLocation: Function '$funcName' has an invalid return type. Expected '$expectedOutputTypeName', found '$funcSignature'."
         )
     }
 }

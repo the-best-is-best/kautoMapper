@@ -189,7 +189,7 @@ class AutoMapperProcessor(
                 if (argClassDecl?.isCustomDataClass() == true && !needsItemMapping) {
                     throw IllegalArgumentException(
                         "Error on property '$sourcePropName': The list contains items of type '${argClassDecl.simpleName.asString()}', " +
-                                "which is a custom class but is not annotated with @AutoMapper. Please annotate it or use a custom mapper."
+                                "which is a custom class but is not annotated with @AutoMapper. Please annotate it or use convention-based mapping (e.g., 'map${sourcePropName.replaceFirstChar { it.uppercase() }}')."
                     )
                 }
 
@@ -210,7 +210,7 @@ class AutoMapperProcessor(
                     throw IllegalArgumentException(
                         "Error on property '$sourcePropName': The type '${sourcePropClassDecl.simpleName.asString()}' is a custom class " +
                                 "but is not annotated with @AutoMapper. The processor cannot map it automatically. " +
-                                "Please add @AutoMapper to the class or use @AutoMapperCustom for this property."
+                                "Please add @AutoMapper to the class or use convention-based mapping (e.g., 'map${sourcePropName.replaceFirstChar { it.uppercase() }}')."
                     )
                 }
 
@@ -219,7 +219,7 @@ class AutoMapperProcessor(
                         "Type Mismatch for property '$sourcePropName': " +
                                 "Source type is '${sourcePropType.declaration.qualifiedName?.asString()}' but " +
                                 "target type is '${targetPropType.declaration.qualifiedName?.asString()}'.\n" +
-                                "To fix this, use @AutoMapperCustom to provide a manual conversion function."
+                                "To fix this, use convention-based mapping (e.g., 'map${sourcePropName.replaceFirstChar { it.uppercase() }}') to provide a manual conversion function."
                     )
                 }
                 "$targetPropName = $accessPrefix"
@@ -302,8 +302,8 @@ class AutoMapperProcessor(
                 }
                 if (!sourcePropType.isSameTypeAs(targetPropType)) {
                     throw IllegalArgumentException(
-                        "@AutoMapperCustom error on '${config.sourceClass.simpleName.asString()}.${sourceProp.simpleName.asString()}': " +
-                                "A custom forward mapper was provided, but the types are different. You must provide a 'reverseMapperFunction' for reverse mapping."
+                        "Custom reverse mapper error on '${config.sourceClass.simpleName.asString()}.${sourceProp.simpleName.asString()}': " +
+                                "A custom forward mapper was provided, but the types are different. You must provide a reverse mapping function (e.g., 'reverseMap${sourcePropName.replaceFirstChar { it.uppercase() }}') for reverse mapping."
                     )
                 }
             }

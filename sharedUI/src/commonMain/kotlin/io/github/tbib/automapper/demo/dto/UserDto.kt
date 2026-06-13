@@ -34,7 +34,7 @@ data class UserDto @OptIn(ExperimentalTime::class) constructor(
 
         // 1. mapTo[Type] convention - Used for any property mapping to LocalDateTime
         @OptIn(ExperimentalTime::class)
-        fun mapToLocalDateTime(joinDate: String): LocalDateTime {
+        fun mapFromStringToLocalDateTime(joinDate: String): LocalDateTime {
             return try {
                 LocalDateTime.parse(joinDate)
             } catch (e: Exception) {
@@ -52,7 +52,7 @@ data class UserDto @OptIn(ExperimentalTime::class) constructor(
         }
 
         // 3. reverseMapFrom[Type] convention - Used for LocalDateTime -> String
-        fun reverseMapFromLocalDateTime(joinDate: LocalDateTime): String {
+        fun reverseMapFromLocalDateTimeToString(joinDate: LocalDateTime): String {
             return joinDate.toString()
         }
 

@@ -35,13 +35,13 @@ It includes:
 ## Add to `commonMain`
 
 ```kotlin
-implementation("io.github.the-best-is-best:automapper-annotations:2.0.0-rc.1")
+implementation("io.github.the-best-is-best:automapper-annotations:2.0.0-rc.3")
 ```
 
 Add KSP processor:
 
 ```kotlin
-ksp("io.github.the-best-is-best:automapper-processor:2.0.0-rc.1")
+ksp("io.github.the-best-is-best:automapper-processor:2.0.0-rc.3")
 ```
 
 ## To start generator
@@ -128,11 +128,32 @@ multiple properties of the same type.
 // Forward: maps any property targeting LocalDateTime
 fun mapToLocalDateTime(value: String): LocalDateTime
 
+// OR include source type for more clarity
+fun mapFromStringToLocalDateTime(value: String): LocalDateTime
+
 // Reverse: maps any property targeting String from LocalDateTime
 fun reverseMapFromLocalDateTime(value: LocalDateTime): String
 ```
 
-### 3. Collection Mapping
+### 3. Cross-Type Mapping
+
+Explicitly define mappers between two specific types for maximum clarity.
+
+```kotlin
+// Forward: String -> LocalDateTime
+fun mapStringToLocalDateTime(value: String): LocalDateTime
+
+// OR
+fun mapFromStringToLocalDateTime(value: String): LocalDateTime
+
+// Reverse: LocalDateTime -> String
+fun reverseMapLocalDateTimeToString(value: LocalDateTime): String
+
+// OR
+fun reverseMapFromLocalDateTimeToString(value: LocalDateTime): String
+```
+
+### 4. Collection Mapping
 
 For `List<T>` or `Array<T>`, you can define a mapper for the list itself using
 `mapList[ArgTypeName]`.
@@ -141,14 +162,14 @@ For `List<T>` or `Array<T>`, you can define a mapper for the list itself using
 fun mapListLookupResponse(data: List<LookupResponse>?): List<Int>?
 ```
 
-### 4. Mapping from Parent (Advanced)
+### 5. Mapping from Parent (Advanced)
 If the function takes the **Source Class** itself as a parameter, it acts as a "from parent" mapper.
 
 ```kotlin
 fun mapEmails(data: UserDto): List<String>
 ```
 
-### 5. Target-Specific Mapping
+### 6. Target-Specific Mapping
 
 If you have multiple `@AutoMapper` targets, you can specify which target a function applies to using
 `map[PropertyName]To[TargetClassName]`.
@@ -191,7 +212,7 @@ data class UserDto @OptIn(ExperimentalTime::class) constructor(
     val status: Status
 ) {
     companion object {
-        // 1. mapTo[Type] - Used for any property mapping to LocalDateTime (e.g., joinDate in UserModel)
+        // 1. mapTo[Type] convention - Used for any property mapping to LocalDateTime
         fun mapToLocalDateTime(date: String): LocalDateTime = LocalDateTime.parse(date)
 
         // 2. Target-Specific - Used for 'joinDate' specifically when mapping to UserEntity

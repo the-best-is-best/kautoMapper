@@ -141,6 +141,8 @@ class AutoMapperProcessor(
         val conventionTypeName = "map$sourceTypeName"
 
         val targetTypeName = targetPropType.declaration.simpleName.asString()
+        val conventionSourceToTargetType = "map${sourceTypeName}To$targetTypeName"
+        val conventionFromSourceToTargetType = "mapFrom${sourceTypeName}To$targetTypeName"
         val conventionTargetTypeNameWithTarget = "map${targetTypeName}To$targetName"
         val conventionTargetTypeName = "map$targetTypeName"
         val conventionToTargetTypeName = "mapTo$targetTypeName"
@@ -159,6 +161,18 @@ class AutoMapperProcessor(
                 sourcePropType
             )
                 ?: findFunction(resolver, config.sourceClass, conventionFuncName, sourcePropType)
+                ?: findFunction(
+                    resolver,
+                    config.sourceClass,
+                    conventionSourceToTargetType,
+                    sourcePropType
+                )
+                ?: findFunction(
+                    resolver,
+                    config.sourceClass,
+                    conventionFromSourceToTargetType,
+                    sourcePropType
+                )
                 ?: findFunction(
                     resolver,
                     config.sourceClass,
@@ -307,6 +321,9 @@ class AutoMapperProcessor(
             val conventionFromTypeReverse = "reverseMapFrom$targetTypeName"
 
             val sourceTypeName = sourcePropType.declaration.simpleName.asString()
+            val conventionTargetToSourceType = "reverseMap${targetTypeName}To$sourceTypeName"
+            val conventionFromTargetToSourceType =
+                "reverseMapFrom${targetTypeName}To$sourceTypeName"
             val conventionSourceTypeReverseWithTarget = "reverseMap${sourceTypeName}To$sourceName"
             val conventionSourceTypeReverse = "reverseMap$sourceTypeName"
 
@@ -321,6 +338,18 @@ class AutoMapperProcessor(
                         resolver,
                         config.sourceClass,
                         conventionReverseName,
+                        targetPropType
+                    )
+                    ?: findFunction(
+                        resolver,
+                        config.sourceClass,
+                        conventionTargetToSourceType,
+                        targetPropType
+                    )
+                    ?: findFunction(
+                        resolver,
+                        config.sourceClass,
+                        conventionFromTargetToSourceType,
                         targetPropType
                     )
                     ?: findFunction(

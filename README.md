@@ -156,9 +156,13 @@ fun reverseMapFromLocalDateTimeToString(value: LocalDateTime): String
 ### 4. Collection Mapping
 
 For `List<T>` or `Array<T>`, you can define a mapper for the list itself using
-`mapList[ArgTypeName]`.
+`mapFromList[ArgTypeName]ToList[TargetArgTypeName]` or `mapList[ArgTypeName]`.
 
 ```kotlin
+// Forward: List<LookupResponse> -> List<Int>
+fun mapFromListLookupResponseToListInt(data: List<LookupResponse>?): List<Int>?
+
+// OR simpler
 fun mapListLookupResponse(data: List<LookupResponse>?): List<Int>?
 ```
 

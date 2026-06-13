@@ -147,14 +147,25 @@ class AutoMapperProcessor(
         val conventionTargetTypeName = "map$targetTypeName"
         val conventionToTargetTypeName = "mapTo$targetTypeName"
 
-        val listConventionName = if (sourcePropType.isList() || sourcePropType.isArray()) {
-            val argType = sourcePropType.arguments.firstOrNull()?.type?.resolve()
-            val argName = argType?.declaration?.simpleName?.asString()
-            if (argName != null) "mapList$argName" else null
-        } else null
+        val listConventionNames = if ((sourcePropType.isList() || sourcePropType.isArray()) &&
+            (targetPropType.isList() || targetPropType.isArray())
+        ) {
+            val srcArgType = sourcePropType.arguments.firstOrNull()?.type?.resolve()
+            val tgtArgType = targetPropType.arguments.firstOrNull()?.type?.resolve()
+            val srcArgName = srcArgType?.declaration?.simpleName?.asString()
+            val tgtArgName = tgtArgType?.declaration?.simpleName?.asString()
+
+            if (srcArgName != null && tgtArgName != null) {
+                listOf(
+                    "mapFromList${srcArgName}ToList${tgtArgName}",
+                    "mapFromList${srcArgName}",
+                    "mapList${srcArgName}"
+                )
+            } else emptyList()
+        } else emptyList()
 
         val customMapper = sourceProp.getCustomMapperAnnotation() ?: run {
-            val func = findFunction(
+            var func = findFunction(
                 resolver,
                 config.sourceClass,
                 conventionFuncNameWithTarget,
@@ -198,12 +209,13 @@ class AutoMapperProcessor(
                     sourcePropType
                 )
                 ?: findFunction(resolver, config.sourceClass, conventionTypeName, sourcePropType)
-                ?: (if (listConventionName != null) findFunction(
-                    resolver,
-                    config.sourceClass,
-                    listConventionName,
-                    sourcePropType
-                ) else null)
+
+            if (func == null) {
+                for (name in listConventionNames) {
+                    func = findFunction(resolver, config.sourceClass, name, sourcePropType)
+                    if (func != null) break
+                }
+            }
 
             if (func != null) {
                 val funcName = func.simpleName.asString()
@@ -327,8 +339,26 @@ class AutoMapperProcessor(
             val conventionSourceTypeReverseWithTarget = "reverseMap${sourceTypeName}To$sourceName"
             val conventionSourceTypeReverse = "reverseMap$sourceTypeName"
 
+            val listReverseConventionNames =
+                if ((targetPropType.isList() || targetPropType.isArray()) &&
+                    (sourcePropType.isList() || sourcePropType.isArray())
+                ) {
+                    val tgtArgType = targetPropType.arguments.firstOrNull()?.type?.resolve()
+                    val srcArgType = sourcePropType.arguments.firstOrNull()?.type?.resolve()
+                    val tgtArgName = tgtArgType?.declaration?.simpleName?.asString()
+                    val srcArgName = srcArgType?.declaration?.simpleName?.asString()
+
+                    if (tgtArgName != null && srcArgName != null) {
+                        listOf(
+                            "reverseMapFromList${tgtArgName}ToList${srcArgName}",
+                            "reverseMapFromList${tgtArgName}",
+                            "reverseMapList${tgtArgName}"
+                        )
+                    } else emptyList()
+                } else emptyList()
+
             val customMapper = sourceProp.getCustomMapperAnnotation() ?: run {
-                val func = findFunction(
+                var func = findFunction(
                     resolver,
                     config.sourceClass,
                     conventionReverseNameWithTarget,
@@ -382,6 +412,13 @@ class AutoMapperProcessor(
                         conventionFromTypeReverse,
                         targetPropType
                     )
+
+                if (func == null) {
+                    for (name in listReverseConventionNames) {
+                        func = findFunction(resolver, config.sourceClass, name, targetPropType)
+                        if (func != null) break
+                    }
+                }
 
                 if (func != null) {
                     val funcName = func.simpleName.asString()

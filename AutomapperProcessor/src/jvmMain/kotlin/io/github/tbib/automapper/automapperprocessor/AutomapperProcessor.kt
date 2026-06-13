@@ -5,6 +5,7 @@ import com.google.devtools.ksp.processing.Resolver
 import com.google.devtools.ksp.processing.SymbolProcessor
 import com.google.devtools.ksp.processing.SymbolProcessorEnvironment
 import com.google.devtools.ksp.symbol.KSAnnotated
+import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSPropertyDeclaration
 import com.google.devtools.ksp.symbol.Nullability
@@ -12,6 +13,7 @@ import io.github.tbib.automapper.automapperannotations.AutoMapper
 import io.github.tbib.automapper.automapperprocessor.core.ImportHandler
 import io.github.tbib.automapper.automapperprocessor.core.MapperConfig
 import io.github.tbib.automapper.automapperprocessor.core.checkNullability
+import io.github.tbib.automapper.automapperprocessor.core.findFunction
 import io.github.tbib.automapper.automapperprocessor.core.getCollectionArgumentInfo
 import io.github.tbib.automapper.automapperprocessor.core.validateCustomMapper
 import io.github.tbib.automapper.automapperprocessor.core.validateCustomReverseMapper
@@ -42,22 +44,36 @@ class AutoMapperProcessor(
             .filterIsInstance<KSClassDeclaration>()
 
         annotatedClasses.forEach { classDecl ->
-            try {
-                generateMapperFor(classDecl, resolver)
-            } catch (e: Exception) {
-                logger.error(
-                    "Failed to generate mapper for ${classDecl.simpleName.asString()}: ${e.message}",
-                    classDecl
-                )
-                throw e
+            val autoMapperAnnotations = classDecl.annotations.filter {
+                it.shortName.asString() == "AutoMapper"
+            }.toList()
+            val isMulti = autoMapperAnnotations.size > 1
+            autoMapperAnnotations.forEach { annotation ->
+                try {
+                    generateMapperFor(classDecl, annotation, resolver, isMulti)
+                } catch (e: Exception) {
+                    logger.error(
+                        "Failed to generate mapper for ${classDecl.simpleName.asString()} to ${
+                            annotation.arguments.firstOrNull()?.value
+                        }: ${e.message}",
+                        classDecl
+                    )
+                    throw e
+                }
             }
         }
         return emptyList()
     }
 
-    private fun generateMapperFor(sourceClass: KSClassDeclaration, resolver: Resolver) {
+    private fun generateMapperFor(
+        sourceClass: KSClassDeclaration,
+        autoMapperAnnotation: KSAnnotation,
+        resolver: Resolver,
+        isMulti: Boolean
+    ) {
         val autoMapperVisibility = env.options["autoMapperVisibility"]?.toBoolean() ?: false
-        val config = MapperConfig.from(sourceClass, autoMapperVisibility)
+        val config =
+            MapperConfig.from(sourceClass, autoMapperAnnotation, autoMapperVisibility, isMulti)
         val targetClass = config.targetClass
         val sourceProps = sourceClass.getAllProperties().toList()
         val targetProps = targetClass.getPrimaryConstructorProperties()
@@ -114,7 +130,31 @@ class AutoMapperProcessor(
 
         checkNullability(sourceProp, targetProp, config)
 
-        val customMapper = sourceProp.getCustomMapperAnnotation()
+        val propName = sourceProp.simpleName.asString()
+        val capitalizedPropName = propName.replaceFirstChar { it.uppercase() }
+        val targetName = config.targetClass.simpleName.asString()
+        val conventionFuncNameWithTarget = "map${capitalizedPropName}To$targetName"
+        val conventionFuncName = "map$capitalizedPropName"
+
+        val customMapper = sourceProp.getCustomMapperAnnotation() ?: run {
+            val func = findFunction(
+                resolver,
+                config.sourceClass,
+                conventionFuncNameWithTarget,
+                sourcePropType
+            )
+                ?: findFunction(resolver, config.sourceClass, conventionFuncName, sourcePropType)
+
+            if (func != null) {
+                val funcName = func.simpleName.asString()
+                val isFromParent =
+                    func.parameters.firstOrNull()?.type?.resolve()?.declaration == config.sourceClass
+                val annotationName =
+                    if (isFromParent) "AutoMapperCustomFromParent" else "AutoMapperCustom"
+                Triple(annotationName, funcName, "")
+            } else null
+        }
+
         if (customMapper != null) {
             val (annotationName, funcName, _) = customMapper
             validateCustomMapper(
@@ -208,7 +248,36 @@ class AutoMapperProcessor(
             val nullSafeOp = if (isNullable) "?." else "."
             val accessPrefix = "this.${targetProp.simpleName.asString()}"
 
-            val customMapper = sourceProp.getCustomMapperAnnotation()
+            val propName = sourceProp.simpleName.asString()
+            val capitalizedPropName = propName.replaceFirstChar { it.uppercase() }
+            val targetName = config.targetClass.simpleName.asString()
+            val conventionReverseNameWithTarget = "reverseMap${capitalizedPropName}To$targetName"
+            val conventionReverseName = "reverseMap$capitalizedPropName"
+
+            val customMapper = sourceProp.getCustomMapperAnnotation() ?: run {
+                val func = findFunction(
+                    resolver,
+                    config.sourceClass,
+                    conventionReverseNameWithTarget,
+                    targetPropType
+                )
+                    ?: findFunction(
+                        resolver,
+                        config.sourceClass,
+                        conventionReverseName,
+                        targetPropType
+                    )
+
+                if (func != null) {
+                    val funcName = func.simpleName.asString()
+                    val isFromParent =
+                        func.parameters.firstOrNull()?.type?.resolve()?.declaration == config.targetClass
+                    val annotationName =
+                        if (isFromParent) "AutoMapperCustomFromParent" else "AutoMapperCustom"
+                    Triple(annotationName, "", funcName)
+                } else null
+            }
+
             if (customMapper != null) {
                 val (annotationName, _, reverseFuncName) = customMapper
                 if (reverseFuncName.isNotEmpty()) {

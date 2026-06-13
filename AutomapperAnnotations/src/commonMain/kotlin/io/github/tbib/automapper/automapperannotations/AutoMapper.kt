@@ -5,6 +5,7 @@ import kotlin.reflect.KClass
 
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.SOURCE)
+@Repeatable
 annotation class AutoMapper(
     val to: KClass<*>,
     val useClassNameInMapperFunc: Boolean = false,
@@ -29,20 +30,20 @@ annotation class AutoMapperName(
     val to: String
 )
 
-@Target(AnnotationTarget.PROPERTY)
-@Retention(AnnotationRetention.SOURCE)
-annotation class AutoMapperCustom(
-    val mapperFunction: String,
-    val reverseMapperFunction: String = ""
-)
-
-
-@Target(AnnotationTarget.PROPERTY)
-@Retention(AnnotationRetention.SOURCE)
-annotation class AutoMapperCustomFromParent(
-    val mapperFunction: String,
-    val reverseMapperFunction: String = ""
-)
+//@Target(AnnotationTarget.PROPERTY)
+//@Retention(AnnotationRetention.SOURCE)
+//annotation class AutoMapperCustom(
+//    val mapperFunction: String,
+//    val reverseMapperFunction: String = ""
+//)
+//
+//
+//@Target(AnnotationTarget.PROPERTY)
+//@Retention(AnnotationRetention.SOURCE)
+//annotation class AutoMapperCustomFromParent(
+//    val mapperFunction: String,
+//    val reverseMapperFunction: String = ""
+//)
 
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.SOURCE)

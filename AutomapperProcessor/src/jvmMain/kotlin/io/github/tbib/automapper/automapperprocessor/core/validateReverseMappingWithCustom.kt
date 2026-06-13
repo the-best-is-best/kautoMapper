@@ -133,19 +133,29 @@ internal fun checkNullability(
 internal fun findFunction(
     resolver: Resolver,
     sourceClass: KSClassDeclaration,
-    funcName: String
+    funcName: String,
+    expectedParamType: KSType? = null
 ): KSFunctionDeclaration? {
-    sourceClass.declarations.filterIsInstance<KSClassDeclaration>()
-        .firstOrNull { it.isCompanionObject }?.let { companion ->
-        companion.getDeclaredFunctions().firstOrNull { it.simpleName.asString() == funcName }
-            ?.let { return it }
+    val companionFunctions = sourceClass.declarations.filterIsInstance<KSClassDeclaration>()
+        .firstOrNull { it.isCompanionObject }?.getDeclaredFunctions() ?: emptySequence()
+
+    val functions = (companionFunctions + run {
+        val qualifiedFuncName =
+            if ('.' in funcName) funcName else "${sourceClass.packageName.asString()}.$funcName"
+        resolver.getFunctionDeclarationsByName(
+            resolver.getKSNameFromString(qualifiedFuncName),
+            true
+        )
+    }).filter { it.simpleName.asString() == funcName }
+
+    return if (expectedParamType != null) {
+        functions.firstOrNull { func ->
+            val paramType = func.parameters.firstOrNull()?.type?.resolve()
+            paramType != null && paramType.isSameTypeAs(expectedParamType)
+        }
+    } else {
+        functions.firstOrNull()
     }
-    val qualifiedFuncName =
-        if ('.' in funcName) funcName else "${sourceClass.packageName.asString()}.$funcName"
-    return resolver.getFunctionDeclarationsByName(
-        resolver.getKSNameFromString(qualifiedFuncName),
-        true
-    ).firstOrNull()
 }
 
 internal fun validateCustomMapper(

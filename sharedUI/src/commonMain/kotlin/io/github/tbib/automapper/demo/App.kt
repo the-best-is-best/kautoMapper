@@ -15,6 +15,7 @@ import io.github.tbib.automapper.demo.dto.AddressDto
 import io.github.tbib.automapper.demo.dto.PhoneNumberDto
 import io.github.tbib.automapper.demo.dto.UserDto
 import io.github.tbib.automapper.toUserDto
+import io.github.tbib.automapper.toUserEntity
 import io.github.tbib.automapper.toUserModel
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
@@ -31,7 +32,7 @@ fun App() {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Button(onClick = {
-                val userModel =
+                val userDto =
                     UserDto(
                         id = 1,
                         name = "test",
@@ -48,9 +49,12 @@ fun App() {
                         joinDate = ((Clock.System.now() - (300 * 12).days).toString()),
                         role = Roles.USER,
                         status = Status.ACTIVE
-                    ).toUserModel()
+                    )
+                val userModel = userDto.toUserModel()
+                val userEntity = userDto.toUserEntity()
                 println("user data: ${userModel.joinDate}")
                 println("user data reverse ${userModel.toUserDto()}")
+                println("user entity date: ${userEntity.joinDate}")
 
             }) {
                 Text("Click me!")

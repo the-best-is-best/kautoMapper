@@ -20,7 +20,8 @@ internal data class MapperConfig(
     val optInClasses: List<String> // Changed to hold the raw class names
 ) {
     val packageName: String = "io.github.tbib.automapper"
-    val mapperName: String = "${sourceClass.simpleName.asString()}Mapper"
+    val mapperName: String =
+        "${sourceClass.simpleName.asString()}To${targetClass.simpleName.asString()}Mapper"
     val optInAnnotationString: String = optInClasses.toOptInString()
 
     val mapFunctionName: String =
@@ -30,15 +31,17 @@ internal data class MapperConfig(
 
 
     companion object {
-        fun from(sourceClass: KSClassDeclaration, autoMapperVisibility: Boolean): MapperConfig {
-            val autoMapperAnnotation =
-                sourceClass.annotations.first { it.shortName.asString() == "AutoMapper" }
-
+        fun from(
+            sourceClass: KSClassDeclaration,
+            autoMapperAnnotation: KSAnnotation,
+            autoMapperVisibility: Boolean,
+            isMulti: Boolean = false
+        ): MapperConfig {
             val targetClass = autoMapperAnnotation.getTargetClass()
             val forcePublic = autoMapperAnnotation.getArgument("forcePublic", false)
             val isReverseEnabled = autoMapperAnnotation.getArgument("reverse", false)
             val useClassNameInMapperFunc =
-                autoMapperAnnotation.getArgument("useClassNameInMapperFunc", false)
+                autoMapperAnnotation.getArgument("useClassNameInMapperFunc", isMulti)
             val ignoreKeys =
                 autoMapperAnnotation.getArgument<List<String>>("ignoreKeys", emptyList()).toSet()
 

@@ -31,8 +31,10 @@ data class UserDto @OptIn(ExperimentalTime::class) constructor(
 ) {
     @OptIn(ExperimentalTime::class)
     companion object {
+
+        // 1. mapTo[Type] convention - Used for any property mapping to LocalDateTime
         @OptIn(ExperimentalTime::class)
-        fun mapJoinDate(joinDate: String): LocalDateTime {
+        fun mapToLocalDateTime(joinDate: String): LocalDateTime {
             return try {
                 LocalDateTime.parse(joinDate)
             } catch (e: Exception) {
@@ -40,18 +42,21 @@ data class UserDto @OptIn(ExperimentalTime::class) constructor(
             }
         }
 
+        // 2. mapTo[Type] convention - Used for AddressDto -> AddressModel
         @OptIn(ExperimentalTime::class)
-        fun mapAddress(data: AddressDto): AddressModel {
+        fun mapToAddressModel(data: AddressDto): AddressModel {
             return AddressModel(
                 id = data.id,
                 streets = data.street
             )
         }
 
-        fun reverseMapJoinDate(joinDate: LocalDateTime): String {
+        // 3. reverseMapFrom[Type] convention - Used for LocalDateTime -> String
+        fun reverseMapFromLocalDateTime(joinDate: LocalDateTime): String {
             return joinDate.toString()
         }
 
+        // 4. Target-specific property mapping - Used for 'joinDate' when mapping to UserEntity
         fun mapJoinDateToUserEntity(joinDate: String): Long {
             return try {
                 LocalDateTime.parse(joinDate).toInstant(TimeZone.UTC).toEpochMilliseconds()
@@ -60,6 +65,7 @@ data class UserDto @OptIn(ExperimentalTime::class) constructor(
             }
         }
 
+        // 5. Target-specific reverse mapping - Used for mapping UserEntity back to UserDto
         fun reverseMapJoinDateToUserEntity(joinDate: Long): String {
             return try {
                 ""
@@ -68,6 +74,7 @@ data class UserDto @OptIn(ExperimentalTime::class) constructor(
             }
         }
 
+        // 6. Parent-object mapping - Used for 'emails'
         fun mapEmails(data: UserDto): List<String> {
             return listOf("email1", "email2")
         }

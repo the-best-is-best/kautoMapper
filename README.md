@@ -112,7 +112,6 @@ You can define custom mapping logic in your class or companion object without an
 annotations. The processor will automatically find these functions based on their names and types.
 
 ### 1. Simple Property Mapping
-
 Use `map[PropertyName]` for forward and `reverseMap[PropertyName]` for reverse.
 
 ```kotlin
@@ -120,15 +119,36 @@ fun mapJoinDate(value: String): LocalDateTime
 fun reverseMapJoinDate(value: LocalDateTime): String
 ```
 
-### 2. Mapping from Parent (Advanced)
+### 2. Type-Based Mapping (Readable)
 
+You can define mappers based on the **Target Type**. This is useful for reusing logic across
+multiple properties of the same type.
+
+```kotlin
+// Forward: maps any property targeting LocalDateTime
+fun mapToLocalDateTime(value: String): LocalDateTime
+
+// Reverse: maps any property targeting String from LocalDateTime
+fun reverseMapFromLocalDateTime(value: LocalDateTime): String
+```
+
+### 3. Collection Mapping
+
+For `List<T>` or `Array<T>`, you can define a mapper for the list itself using
+`mapList[ArgTypeName]`.
+
+```kotlin
+fun mapListLookupResponse(data: List<LookupResponse>?): List<Int>?
+```
+
+### 4. Mapping from Parent (Advanced)
 If the function takes the **Source Class** itself as a parameter, it acts as a "from parent" mapper.
 
 ```kotlin
 fun mapEmails(data: UserDto): List<String>
 ```
 
-### 3. Target-Specific Mapping
+### 5. Target-Specific Mapping
 
 If you have multiple `@AutoMapper` targets, you can specify which target a function applies to using
 `map[PropertyName]To[TargetClassName]`.
@@ -137,13 +157,13 @@ If you have multiple `@AutoMapper` targets, you can specify which target a funct
 @AutoMapper(to = UserModel::class)
 @AutoMapper(to = UserEntity::class)
 data class UserDto(...) {
-  companion object {
-    // Only used when mapping to UserEntity
-    fun mapJoinDateToUserEntity(value: String): Long
+    companion object {
+        // Only used when mapping to UserEntity
+        fun mapJoinDateToUserEntity(value: String): Long
 
-    // Used for UserModel (fallback)
-    fun mapJoinDate(value: String): LocalDateTime
-  }
+        // Used for UserModel (fallback)
+        fun mapToLocalDateTime(value: String): LocalDateTime
+    }
 }
 ```
 
@@ -158,33 +178,31 @@ data class UserDto(...) {
 @AutoMapper(to = UserEntity::class, reverse = true)
 @AutoMapperAddOptIns(["kotlin.time.ExperimentalTime"])
 data class UserDto @OptIn(ExperimentalTime::class) constructor(
-  val id: Int,
-  val name: String,
-  val joinDate: String,
+    val id: Int,
+    val name: String,
+    val joinDate: String,
 
-  @AutoMapperName("addres")
-  val address: AddressDto,
+    @AutoMapperName("addres")
+    val address: AddressDto,
 
-  val emails: List<String>,
-  val role: Roles,
-  val status: Status
+    val emails: List<String>,
+    val phoneNumbers: List<PhoneNumberDto>,
+    val role: Roles,
+    val status: Status
 ) {
-  companion object {
-    // Forward: String -> LocalDateTime (Used by UserModel)
-    fun mapJoinDate(joinDate: String): LocalDateTime = LocalDateTime.parse(joinDate)
+    companion object {
+        // 1. mapTo[Type] - Used for any property mapping to LocalDateTime (e.g., joinDate in UserModel)
+        fun mapToLocalDateTime(date: String): LocalDateTime = LocalDateTime.parse(date)
 
-    // Forward: String -> Long (Specifically for UserEntity)
-    fun mapJoinDateToUserEntity(joinDate: String): Long =
-      LocalDateTime.parse(joinDate).toInstant(TimeZone.UTC).toEpochMilliseconds()
+        // 2. Target-Specific - Used for 'joinDate' specifically when mapping to UserEntity
+        fun mapJoinDateToUserEntity(date: String): Long =
+            LocalDateTime.parse(date).toInstant(TimeZone.UTC).toEpochMilliseconds()
 
-    // Reverse: LocalDateTime -> String (Used by UserModel)
-    fun reverseMapJoinDate(joinDate: LocalDateTime): String = joinDate.toString()
+        // 3. reverseMapFrom[Type] - Used when mapping back from UserModel
+        fun reverseMapFromLocalDateTime(date: LocalDateTime): String = date.toString()
 
-    // Reverse: Long -> String (Used by UserEntity)
-    fun reverseMapJoinDateToUserEntity(joinDate: Long): String = ""
-
-    // Custom logic using the whole parent object
-    fun mapEmails(data: UserDto): List<String> = listOf("email1", "email2")
+        // 4. Custom logic using the whole parent object
+        fun mapEmails(data: UserDto): List<String> = data.emails.filter { it.isNotBlank() }
     }
 }
 ```
@@ -217,17 +235,17 @@ id("com.google.devtools.ksp")
 
 ```kotlin
 kotlin {
-  // ... targets configuration (android, ios, etc.)
+    // ... targets configuration (android, ios, etc.)
 
-  sourceSets.named("commonMain").configure {
-    // Ensure generated code is visible
-    kotlin.srcDir("build/generated/ksp/metadata/commonMain/kotlin")
+    sourceSets.named("commonMain").configure {
+        // Ensure generated code is visible
+        kotlin.srcDir("build/generated/ksp/metadata/commonMain/kotlin")
     }
 }
 
 ksp {
-  // Optional: make mappers internal by default
-  arg("autoMapperVisibility", "false")
+    // Optional: make mappers internal by default
+    arg("autoMapperVisibility", "false")
 }
 ```
 

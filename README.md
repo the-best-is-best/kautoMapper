@@ -35,13 +35,13 @@ It includes:
 ## Add to `commonMain`
 
 ```kotlin
-implementation("io.github.the-best-is-best:automapper-annotations:2.1.1")
+implementation("io.github.the-best-is-best:automapper-annotations:2.1.2")
 ```
 
 Add KSP processor:
 
 ```kotlin
-ksp("io.github.the-best-is-best:automapper-processor:2.1.1")
+ksp("io.github.the-best-is-best:automapper-processor:2.1.2")
 ```
 
 ## To start generator

@@ -49,7 +49,9 @@ fun App() {
                         joinDate = ((Clock.System.now() - (300 * 12).days).toString()),
                         role = Roles.USER,
                         status = Status.ACTIVE,
-                        genericClass = GenericClass(x = "test")
+                        genericClass = listOf(
+                            GenericClass(x = "test")
+                        )
                     )
                 val userModel = userDto.toUserModel()
                 val userEntity = userDto.toUserEntity()

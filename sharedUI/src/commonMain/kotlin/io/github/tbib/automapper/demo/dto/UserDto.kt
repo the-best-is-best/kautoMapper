@@ -33,7 +33,7 @@ data class UserDto @OptIn(ExperimentalTime::class) constructor(
     @AutoMapperName("roles", mapTo = UserEntity::class)
     val role: Roles,
     val status: Status,
-    val genericClass: GenericClass
+    val genericClass: List<GenericClass>
 ) {
     @OptIn(ExperimentalTime::class)
     companion object {

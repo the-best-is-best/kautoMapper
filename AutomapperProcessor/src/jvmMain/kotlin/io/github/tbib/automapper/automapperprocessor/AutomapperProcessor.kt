@@ -266,14 +266,29 @@ class AutoMapperProcessor(
         val sourcePropClassDecl = sourcePropType.declaration as? KSClassDeclaration
 
         return when {
-            sourcePropType.isList() || sourcePropType.isArray() -> {
-                val argType = sourcePropType.arguments.first().type!!.resolve()
+            sourcePropType.isList() || sourcePropType.isArray() || sourcePropType.isMap() -> {
+                val argType = if (sourcePropType.isMap()) {
+                    sourcePropType.arguments.getOrNull(1)?.type?.resolve()
+                } else {
+                    sourcePropType.arguments.getOrNull(0)?.type?.resolve()
+                }
+                    ?: throw IllegalStateException("Collection argument for '$sourcePropName' not found.")
+
                 val argClassDecl = argType.declaration as? KSClassDeclaration
                 val needsItemMapping = argClassDecl?.hasAnnotation("AutoMapper") == true
 
+                val targetArgType = if (targetPropType.isList() || targetPropType.isArray()) {
+                    targetPropType.arguments.getOrNull(0)?.type?.resolve()
+                } else if (targetPropType.isMap()) {
+                    targetPropType.arguments.getOrNull(1)?.type?.resolve()
+                } else null
+
                 if (argClassDecl?.isCustomDataClass() == true && !needsItemMapping) {
+                    if (targetArgType != null && argType.isSameTypeAs(targetArgType)) {
+                        return "$targetPropName = $accessPrefix"
+                    }
                     throw IllegalArgumentException(
-                        "Error on property '$sourcePropName': The list contains items of type '${argClassDecl.simpleName.asString()}', " +
+                        "Error on property '$sourcePropName': The collection contains items of type '${argClassDecl.simpleName.asString()}', " +
                                 "which is a custom class but is not annotated with @AutoMapper. Please annotate it or use convention-based mapping (e.g., 'map${sourcePropName.replaceFirstChar { it.uppercase() }}')."
                     )
                 }
@@ -281,7 +296,11 @@ class AutoMapperProcessor(
                 if (!needsItemMapping) return "$targetPropName = $accessPrefix"
 
                 val nullSafeOp = if (sourceNullable) "?." else "."
-                val mapTransform = "map { it.${argClassDecl!!.getMapperFunctionName()}() }"
+                val mapTransform = if (sourcePropType.isMap()) {
+                    "mapValues { it.value.${argClassDecl!!.getMapperFunctionName()}() }"
+                } else {
+                    "map { it.${argClassDecl!!.getMapperFunctionName()}() }"
+                }
                 val arraySuffix = if (sourcePropType.isArray()) ".toTypedArray()" else ""
                 "$targetPropName = $accessPrefix$nullSafeOp$mapTransform$arraySuffix"
             }
@@ -494,11 +513,12 @@ class AutoMapperProcessor(
                         val arraySuffix = if (sourcePropType.isArray()) ".toTypedArray()" else ""
                         "$accessPrefix$nullSafeOp$mapLogic$arraySuffix"
                     } else {
-                        val targetArgType = if (targetPropType.isMap()) {
-                            targetPropType.arguments.getOrNull(1)?.type?.resolve()
-                        } else {
+                        val targetArgType =
+                            if (targetPropType.isList() || targetPropType.isArray()) {
                             targetPropType.arguments.getOrNull(0)?.type?.resolve()
-                        }
+                            } else if (targetPropType.isMap()) {
+                                targetPropType.arguments.getOrNull(1)?.type?.resolve()
+                            } else null
 
                         if (argType != null && targetArgType != null && !argType.isSameTypeAs(
                                 targetArgType

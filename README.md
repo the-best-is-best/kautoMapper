@@ -1,5 +1,5 @@
 <div align="center">
- <h1> AutoMapper Annotations <h1>
+ <h1> Easy Mapper (AutoMapper) <h1>
 </div>
 <div align="center">
 <a href="https://opensource.org/licenses/Apache-2.0"><img alt="License" src="https://img.shields.io/badge/License-Apache%202.0-blue.svg"/></a>
@@ -35,13 +35,13 @@ It includes:
 ## Add to `commonMain`
 
 ```kotlin
-implementation("io.github.the-best-is-best:automapper-annotations:2.1.0")
+implementation("io.github.the-best-is-best:automapper-annotations:2.1.1")
 ```
 
 Add KSP processor:
 
 ```kotlin
-ksp("io.github.the-best-is-best:automapper-processor:2.1.0")
+ksp("io.github.the-best-is-best:automapper-processor:2.1.1")
 ```
 
 ## To start generator

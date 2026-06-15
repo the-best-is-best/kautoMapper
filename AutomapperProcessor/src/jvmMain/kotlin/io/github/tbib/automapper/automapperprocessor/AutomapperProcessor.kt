@@ -17,8 +17,8 @@ import io.github.tbib.automapper.automapperprocessor.core.findFunction
 import io.github.tbib.automapper.automapperprocessor.core.getCollectionArgumentInfo
 import io.github.tbib.automapper.automapperprocessor.core.validateCustomMapper
 import io.github.tbib.automapper.automapperprocessor.core.validateCustomReverseMapper
-import io.github.tbib.automapper.automapperprocessor.core.validateNestedReverseSupport
 import io.github.tbib.automapper.automapperprocessor.core.validatePropertyMatching
+import io.github.tbib.automapper.automapperprocessor.extensions.getArgument
 import io.github.tbib.automapper.automapperprocessor.extensions.getCustomMapperAnnotation
 import io.github.tbib.automapper.automapperprocessor.extensions.getMappedName
 import io.github.tbib.automapper.automapperprocessor.extensions.getMapperFunctionName
@@ -319,7 +319,6 @@ class AutoMapperProcessor(
         importHandler: ImportHandler,
         resolver: Resolver
     ): List<String> {
-        validateNestedReverseSupport(sourceProps, config.sourceClass.simpleName.asString())
 
         return sourceProps.mapNotNull { sourceProp ->
             val sourcePropName = sourceProp.simpleName.asString()
@@ -477,26 +476,74 @@ class AutoMapperProcessor(
                 sourcePropType.isList() || sourcePropType.isArray() || sourcePropType.isMap() -> {
                     val (argType, _) = getCollectionArgumentInfo(sourcePropType)
                     val argClassDecl = argType?.declaration as? KSClassDeclaration
-                    val isAutoMapped = argClassDecl?.hasAnnotation("AutoMapper") == true
+                    val autoMapperAnnotation =
+                        argClassDecl?.annotations?.firstOrNull { it.shortName.asString() == "AutoMapper" }
 
-                    val mapLogic = if (isAutoMapped) {
-                        val funcName = argClassDecl.getReverseMapperFunctionName()
-                        when {
+                    if (autoMapperAnnotation != null) {
+                        if (!autoMapperAnnotation.getArgument("reverse", false)) {
+                            throw IllegalArgumentException(
+                                "Property '$sourcePropName' items type '${argClassDecl!!.simpleName.asString()}' " +
+                                        "does not have @AutoMapper(reverse=true). This is required for reverse mapping in '${config.sourceClass.simpleName.asString()}'."
+                            )
+                        }
+                        val funcName = argClassDecl!!.getReverseMapperFunctionName()
+                        val mapLogic = when {
                             sourcePropType.isMap() -> "mapValues { it.value.$funcName() }"
                             else -> "map { it.$funcName() }"
                         }
-                    } else ""
-                    val arraySuffix = if (sourcePropType.isArray()) ".toTypedArray()" else ""
-                    if (mapLogic.isNotEmpty()) "$accessPrefix$nullSafeOp$mapLogic$arraySuffix" else accessPrefix
+                        val arraySuffix = if (sourcePropType.isArray()) ".toTypedArray()" else ""
+                        "$accessPrefix$nullSafeOp$mapLogic$arraySuffix"
+                    } else {
+                        val targetArgType = if (targetPropType.isMap()) {
+                            targetPropType.arguments.getOrNull(1)?.type?.resolve()
+                        } else {
+                            targetPropType.arguments.getOrNull(0)?.type?.resolve()
+                        }
+
+                        if (argType != null && targetArgType != null && !argType.isSameTypeAs(
+                                targetArgType
+                            )
+                        ) {
+                            if (argClassDecl?.isCustomDataClass() == true) {
+                                throw IllegalArgumentException(
+                                    "Property '$sourcePropName' items type '${argClassDecl.simpleName.asString()}' " +
+                                            "is a custom class but is missing the @AutoMapper annotation, " +
+                                            "which is required for reverse mapping in '${config.sourceClass.simpleName.asString()}'."
+                                )
+                            }
+                        }
+                        accessPrefix
+                    }
                 }
 
                 (sourcePropType.declaration as? KSClassDeclaration)?.let {
-                    it.isCustomDataClass() && it.hasAnnotation("AutoMapper")
+                    it.isCustomDataClass()
                 } == true -> {
-                    val funcName =
-                        (sourcePropType.declaration as KSClassDeclaration).getReverseMapperFunctionName()
-                    "$accessPrefix$nullSafeOp$funcName()"
+                    val sourcePropClassDecl = sourcePropType.declaration as KSClassDeclaration
+                    val autoMapperAnnotation =
+                        sourcePropClassDecl.annotations.firstOrNull { it.shortName.asString() == "AutoMapper" }
+
+                    if (autoMapperAnnotation != null) {
+                        if (!autoMapperAnnotation.getArgument("reverse", false)) {
+                            throw IllegalArgumentException(
+                                "Property '$sourcePropName' type '${sourcePropClassDecl.simpleName.asString()}' " +
+                                        "does not have @AutoMapper(reverse=true). This is required for reverse mapping in '${config.sourceClass.simpleName.asString()}'."
+                            )
+                        }
+                        val funcName = sourcePropClassDecl.getReverseMapperFunctionName()
+                        "$accessPrefix$nullSafeOp$funcName()"
+                    } else {
+                        if (!sourcePropType.isSameTypeAs(targetPropType)) {
+                            throw IllegalArgumentException(
+                                "Property '$sourcePropName' type '${sourcePropClassDecl.simpleName.asString()}' " +
+                                        "is a custom class but is missing the @AutoMapper annotation, " +
+                                        "which is required for reverse mapping in '${config.sourceClass.simpleName.asString()}'."
+                            )
+                        }
+                        accessPrefix
+                    }
                 }
+
                 else -> accessPrefix
             }
             "$sourcePropName = $assignment"

@@ -1,5 +1,6 @@
 package io.github.tbib.automapper.demo.model
 
+import io.github.tbib.automapper.demo.GenericClass
 import io.github.tbib.automapper.demo.Roles
 import io.github.tbib.automapper.demo.Status
 import kotlinx.datetime.LocalDateTime
@@ -13,5 +14,7 @@ data class UserModel @OptIn(ExperimentalTime::class) constructor(
     val emails: List<String>,
     val phoneNumbers: List<PhoneNumberModel>,
     val roless: Roles,
-    val status: Status
+    val status: Status,
+    val genericClass: GenericClass
+
 )

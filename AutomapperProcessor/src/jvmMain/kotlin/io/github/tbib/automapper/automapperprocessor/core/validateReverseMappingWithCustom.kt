@@ -8,7 +8,6 @@ import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import com.google.devtools.ksp.symbol.KSPropertyDeclaration
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.Nullability
-import io.github.tbib.automapper.automapperprocessor.extensions.getArgument
 import io.github.tbib.automapper.automapperprocessor.extensions.getMappedName
 import io.github.tbib.automapper.automapperprocessor.extensions.hasAnnotation
 import io.github.tbib.automapper.automapperprocessor.extensions.isCustomDataClass
@@ -57,43 +56,6 @@ internal fun getCollectionArgumentInfo(collectionType: KSType): Pair<KSType?, Bo
     val argDecl = argType?.declaration as? KSClassDeclaration
     val isCustom = argDecl?.isCustomDataClass() == true
     return Pair(argType, isCustom)
-}
-
-internal fun validateNestedReverseSupport(
-    sourceProps: List<KSPropertyDeclaration>,
-    sourceClassName: String
-) {
-    sourceProps.forEach { prop ->
-        val propType = prop.type.resolve()
-        val (typeToCheck, _) = if (propType.isMap() || propType.declaration.qualifiedName?.asString()
-                ?.startsWith("kotlin.collections") == true
-        ) {
-            val genericType = propType.arguments.firstOrNull()?.type?.resolve()
-            Pair(genericType, true)
-        } else {
-            Pair(propType, false)
-        }
-
-        val typeDecl = typeToCheck?.declaration as? KSClassDeclaration
-
-        if (typeDecl != null && typeDecl.isCustomDataClass()) {
-            val nestedMapper =
-                typeDecl.annotations.firstOrNull { it.shortName.asString() == "AutoMapper" }
-            if (nestedMapper == null) {
-                throw IllegalArgumentException(
-                    "Property '${prop.simpleName.asString()}' type '${typeDecl.simpleName.asString()}' " +
-                            "is a custom class but is missing the @AutoMapper annotation, " +
-                            "which is required for reverse mapping in '$sourceClassName'."
-                )
-            }
-            if (!nestedMapper.getArgument("reverse", false)) {
-                throw IllegalArgumentException(
-                    "Property '${prop.simpleName.asString()}' maps to a type ('${typeDecl.simpleName.asString()}') that " +
-                            "does not have @AutoMapper(reverse=true). This is required for reverse mapping in '$sourceClassName'."
-                )
-            }
-        }
-    }
 }
 
 internal fun checkNullability(

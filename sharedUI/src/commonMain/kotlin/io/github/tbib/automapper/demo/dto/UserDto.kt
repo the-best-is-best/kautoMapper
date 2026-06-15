@@ -4,6 +4,7 @@ import io.github.tbib.automapper.automapperannotations.AutoMapper
 import io.github.tbib.automapper.automapperannotations.AutoMapperAddOptIns
 import io.github.tbib.automapper.automapperannotations.AutoMapperName
 import io.github.tbib.automapper.automapperannotations.AutoMapperRequired
+import io.github.tbib.automapper.demo.GenericClass
 import io.github.tbib.automapper.demo.Roles
 import io.github.tbib.automapper.demo.Status
 import io.github.tbib.automapper.demo.model.AddressModel
@@ -17,7 +18,7 @@ import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
 @AutoMapper(to = UserModel::class, reverse = true, useClassNameInMapperFunc = true)
-@AutoMapper(to = UserEntity::class, reverse = false)
+@AutoMapper(to = UserEntity::class)
 @AutoMapperAddOptIns(["kotlin.time.ExperimentalTime"])
 data class UserDto @OptIn(ExperimentalTime::class) constructor(
     val id: Int,
@@ -31,7 +32,8 @@ data class UserDto @OptIn(ExperimentalTime::class) constructor(
     @AutoMapperName("roless")
     @AutoMapperName("roles", mapTo = UserEntity::class)
     val role: Roles,
-    val status: Status
+    val status: Status,
+    val genericClass: GenericClass
 ) {
     @OptIn(ExperimentalTime::class)
     companion object {

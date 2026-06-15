@@ -3,6 +3,7 @@ package io.github.tbib.automapper.demo.dto
 import io.github.tbib.automapper.automapperannotations.AutoMapper
 import io.github.tbib.automapper.automapperannotations.AutoMapperAddOptIns
 import io.github.tbib.automapper.automapperannotations.AutoMapperName
+import io.github.tbib.automapper.automapperannotations.AutoMapperRequired
 import io.github.tbib.automapper.demo.Roles
 import io.github.tbib.automapper.demo.Status
 import io.github.tbib.automapper.demo.model.AddressModel
@@ -21,11 +22,14 @@ import kotlin.time.ExperimentalTime
 data class UserDto @OptIn(ExperimentalTime::class) constructor(
     val id: Int,
     val name: String,
-    val joinDate: String,
+    @AutoMapperRequired
+    val joinDate: String?,
     @AutoMapperName("addres")
     val address: AddressDto,
     val emails: List<String>,
     val phoneNumbers: List<PhoneNumberDto>,
+    @AutoMapperName("roless")
+    @AutoMapperName("roles", mapTo = UserEntity::class)
     val role: Roles,
     val status: Status
 ) {
@@ -42,6 +46,7 @@ data class UserDto @OptIn(ExperimentalTime::class) constructor(
             }
         }
 
+
         // 2. mapTo[Type] convention - Used for AddressDto -> AddressModel
         @OptIn(ExperimentalTime::class)
         fun mapToAddressModel(data: AddressDto): AddressModel {
@@ -57,8 +62,9 @@ data class UserDto @OptIn(ExperimentalTime::class) constructor(
         }
 
         // 4. Target-specific property mapping - Used for 'joinDate' when mapping to UserEntity
-        fun mapJoinDateToUserEntity(joinDate: String): Long {
+        fun mapJoinDateToUserEntity(joinDate: String?): Long? {
             return try {
+                if (joinDate == null) return null
                 LocalDateTime.parse(joinDate).toInstant(TimeZone.UTC).toEpochMilliseconds()
             } catch (e: Exception) {
                 0L

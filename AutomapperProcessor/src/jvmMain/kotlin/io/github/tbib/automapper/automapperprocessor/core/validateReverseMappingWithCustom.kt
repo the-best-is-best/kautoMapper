@@ -13,6 +13,7 @@ import io.github.tbib.automapper.automapperprocessor.extensions.getMappedName
 import io.github.tbib.automapper.automapperprocessor.extensions.hasAnnotation
 import io.github.tbib.automapper.automapperprocessor.extensions.isCustomDataClass
 import io.github.tbib.automapper.automapperprocessor.extensions.isMap
+import io.github.tbib.automapper.automapperprocessor.extensions.isRequiredFor
 import io.github.tbib.automapper.automapperprocessor.extensions.isSameTypeAs
 
 internal fun validatePropertyMatching(
@@ -25,7 +26,7 @@ internal fun validatePropertyMatching(
 ) {
     val sourceName = sourceClass.simpleName.asString()
     val targetName = targetClass.simpleName.asString()
-    val sourcePropNames = sourceProps.map { it.getMappedName() }.toSet()
+    val sourcePropNames = sourceProps.map { it.getMappedName(targetClass) }.toSet()
     val targetPropNames = targetProps.map { it.simpleName.asString() }.toSet()
 
     val missingKeys = targetPropNames.filter { targetPropName ->
@@ -111,7 +112,8 @@ internal fun checkNullability(
     val hasDefaultValue = config.defaultValues.containsKey(targetPropName)
     val hasCustomMapper =
         sourceProp.hasAnnotation("AutoMapperCustom") || sourceProp.hasAnnotation("AutoMapperCustomFromParent")
-    val hasSafeFallback = hasDefaultValue || hasCustomMapper
+    val hasRequiredAnnotation = sourceProp.isRequiredFor(config.targetClass)
+    val hasSafeFallback = hasDefaultValue || hasCustomMapper || hasRequiredAnnotation
 
     if (!hasSafeFallback) {
         throw IllegalArgumentException(
@@ -125,6 +127,7 @@ internal fun checkNullability(
             2. Provide a default value: defaultValues = [DefaultValue(key = "$targetPropName", value = "YourDefaultValue")]
             3. Use convention-based mapping: Provide a function 'map${targetPropName.replaceFirstChar { it.uppercase() }}' or 'map${targetPropName.replaceFirstChar { it.uppercase() }}To${config.targetClass.simpleName.asString()}' in the companion object.
             4. Make the source property '${sourceProp.simpleName.asString()}' non-nullable.
+            5. Use @AutoMapperRequired on the source property if you are sure it won't be null.
             """.trimIndent()
         )
     }

@@ -12,6 +12,6 @@ data class UserModel @OptIn(ExperimentalTime::class) constructor(
     val addres: AddressModel,
     val emails: List<String>,
     val phoneNumbers: List<PhoneNumberModel>,
-    val role: Roles,
+    val roless: Roles,
     val status: Status
 )

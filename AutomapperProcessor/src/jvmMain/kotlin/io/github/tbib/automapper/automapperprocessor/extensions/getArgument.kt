@@ -59,13 +59,28 @@ internal fun List<String>.toOptInString(): String {
 }
 
 // Property-specific extensions
-internal fun KSPropertyDeclaration.getMappedName(): String {
-    val nameAnnotation =
-        this.annotations.firstOrNull { it.shortName.asString() == "AutoMapperName" }
+internal fun KSPropertyDeclaration.getMappedName(targetClass: KSClassDeclaration): String {
+    val annotations =
+        this.annotations.filter { it.shortName.asString() == "AutoMapperName" }.toList()
+    if (annotations.isEmpty()) return this.simpleName.asString()
 
-    // --- THIS IS THE CORRECTED LOGIC ---
-    // The annotation's argument is 'value', not 'name'. We get the first argument's value.
-    return nameAnnotation?.arguments?.firstOrNull()?.value as? String ?: this.simpleName.asString()
+    val targetQualifiedName = targetClass.qualifiedName?.asString()
+
+    // 1. Try to find a specific match for targetClass
+    val specificMatch = annotations.find {
+        val mapTo = it.getArgument("mapTo", null as KSType?)
+        mapTo?.declaration?.qualifiedName?.asString() == targetQualifiedName
+    }
+    if (specificMatch != null) return specificMatch.getArgument("to", "")
+
+    // 2. Try to find one that applies to "Any" or has no specific mapTo
+    val defaultMatch = annotations.find {
+        val mapTo = it.getArgument("mapTo", null as KSType?)
+        mapTo == null || mapTo.declaration.qualifiedName?.asString() == "kotlin.Any"
+    }
+    if (defaultMatch != null) return defaultMatch.getArgument("to", "")
+
+    return this.simpleName.asString()
 }
 
 internal fun KSPropertyDeclaration.getCustomMapperAnnotation(): Triple<String, String, String>? {
@@ -82,6 +97,27 @@ internal fun KSPropertyDeclaration.getCustomMapperAnnotation(): Triple<String, S
         funcName,
         reverseFuncName
     ) else null
+}
+
+internal fun KSPropertyDeclaration.isRequiredFor(targetClass: KSClassDeclaration): Boolean {
+    val annotations =
+        this.annotations.filter { it.shortName.asString() == "AutoMapperRequired" }.toList()
+    if (annotations.isEmpty()) return false
+
+    val targetQualifiedName = targetClass.qualifiedName?.asString()
+
+    // 1. Try to find a specific match for targetClass
+    val specificMatch = annotations.any {
+        val mapTo = it.getArgument("mapTo", null as KSType?)
+        mapTo?.declaration?.qualifiedName?.asString() == targetQualifiedName
+    }
+    if (specificMatch) return true
+
+    // 2. Try to find one that applies to "Any" or has no specific mapTo
+    return annotations.any {
+        val mapTo = it.getArgument("mapTo", null as KSType?)
+        mapTo == null || mapTo.declaration.qualifiedName?.asString() == "kotlin.Any"
+    }
 }
 
 // Type-specific extensions

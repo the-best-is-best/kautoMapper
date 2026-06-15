@@ -1,5 +1,5 @@
 extra["groupId"] = "io.github.the-best-is-best"
-extra["version"] = "2.0.0"
+extra["version"] = "2.1.0"
 extra["packageUrl"] = "https://github.com/the-best-is-best/kautoMapper"
 extra["issueUrl"] = "https://github.com/the-best-is-best/kautoMapper/issues"
 extra["connectionGit"] = "https://github.com/the-best-is-best/kautoMapper.git"

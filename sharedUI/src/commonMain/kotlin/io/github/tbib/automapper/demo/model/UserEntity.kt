@@ -6,7 +6,7 @@ import io.github.tbib.automapper.demo.Status
 data class UserEntity(
     val id: Int,
     val name: String,
-    val joinDate: Long,
-    val role: Roles,
+    val joinDate: Long?,
+    val roles: Roles,
     val status: Status
 )

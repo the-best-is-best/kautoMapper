@@ -26,24 +26,19 @@ annotation class DefaultValue(
 
 @Target(AnnotationTarget.PROPERTY)
 @Retention(AnnotationRetention.SOURCE)
+@Repeatable
 annotation class AutoMapperName(
-    val to: String
+    val to: String,
+    val mapTo: KClass<*> = Any::class
 )
 
-//@Target(AnnotationTarget.PROPERTY)
-//@Retention(AnnotationRetention.SOURCE)
-//annotation class AutoMapperCustom(
-//    val mapperFunction: String,
-//    val reverseMapperFunction: String = ""
-//)
-//
-//
-//@Target(AnnotationTarget.PROPERTY)
-//@Retention(AnnotationRetention.SOURCE)
-//annotation class AutoMapperCustomFromParent(
-//    val mapperFunction: String,
-//    val reverseMapperFunction: String = ""
-//)
+@Target(AnnotationTarget.PROPERTY)
+@Retention(AnnotationRetention.SOURCE)
+@Repeatable
+annotation class AutoMapperRequired(
+    val mapTo: KClass<*> = Any::class
+)
+
 
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.SOURCE)

@@ -35,13 +35,13 @@ It includes:
 ## Add to `commonMain`
 
 ```kotlin
-implementation("io.github.the-best-is-best:automapper-annotations:2.0.0")
+implementation("io.github.the-best-is-best:automapper-annotations:2.1.0")
 ```
 
 Add KSP processor:
 
 ```kotlin
-ksp("io.github.the-best-is-best:automapper-processor:2.0.0")
+ksp("io.github.the-best-is-best:automapper-processor:2.1.0")
 ```
 
 ## To start generator
@@ -88,10 +88,45 @@ annotation class DefaultValue(
 
 ## `@AutoMapperName`
 
-### Renames property
+### Renames property. This annotation is repeatable and can be target-specific.
 
 ```kotlin
-annotation class AutoMapperName(val to: String)
+@Repeatable
+annotation class AutoMapperName(
+    val to: String,
+    val mapTo: KClass<*> = Any::class
+)
+```
+
+**Example:**
+
+```kotlin
+@AutoMapperName("addres", mapTo = UserModel::class)
+@AutoMapperName("address_entity", mapTo = UserEntity::class)
+val address: AddressDto
+```
+
+---
+
+## `@AutoMapperRequired`
+
+### Forces mapping even if nullability mismatches. This annotation is repeatable and can be target-specific.
+
+Use this when you are certain a nullable source property will not be null at runtime when mapping to
+a non-nullable target. It will use the `!!` operator in the generated code.
+
+```kotlin
+@Repeatable
+annotation class AutoMapperRequired(
+    val mapTo: KClass<*> = Any::class
+)
+```
+
+**Example:**
+
+```kotlin
+@AutoMapperRequired(mapTo = UserModel::class) // Only applies '!!' when mapping to UserModel
+val joinDate: String?
 ```
 
 ---

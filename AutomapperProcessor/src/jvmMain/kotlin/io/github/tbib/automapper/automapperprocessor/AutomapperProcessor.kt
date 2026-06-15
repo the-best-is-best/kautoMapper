@@ -29,6 +29,7 @@ import io.github.tbib.automapper.automapperprocessor.extensions.isArray
 import io.github.tbib.automapper.automapperprocessor.extensions.isCustomDataClass
 import io.github.tbib.automapper.automapperprocessor.extensions.isList
 import io.github.tbib.automapper.automapperprocessor.extensions.isMap
+import io.github.tbib.automapper.automapperprocessor.extensions.isRequiredFor
 import io.github.tbib.automapper.automapperprocessor.extensions.isSameTypeAs
 import java.io.OutputStream
 
@@ -108,7 +109,8 @@ class AutoMapperProcessor(
                     "$targetPropName = $defaultValue"
                 }
                 else -> {
-                    val sourceProp = sourceProps.find { it.getMappedName() == targetPropName }
+                    val sourceProp =
+                        sourceProps.find { it.getMappedName(config.targetClass) == targetPropName }
                         ?: throw IllegalStateException("Validated source property for '$targetPropName' not found.")
                     mapProperty(sourceProp, targetProp, config, importHandler, resolver)
                 }
@@ -227,8 +229,19 @@ class AutoMapperProcessor(
             } else null
         }
 
+        val sourceNullable = sourcePropType.nullability == Nullability.NULLABLE
+        val hasRequired = sourceProp.isRequiredFor(config.targetClass)
+
         if (customMapper != null) {
             val (annotationName, funcName, _) = customMapper
+            val func = findFunction(resolver, config.sourceClass, funcName)
+            val paramIsNullable =
+                func?.parameters?.firstOrNull()?.type?.resolve()?.nullability == Nullability.NULLABLE
+
+            val useNotNullAssertion = hasRequired && sourceNullable && !paramIsNullable
+            val accessPrefixCustom =
+                if (useNotNullAssertion) "this.$sourcePropName!!" else "this.$sourcePropName"
+
             validateCustomMapper(
                 resolver,
                 config.sourceClass,
@@ -243,13 +256,13 @@ class AutoMapperProcessor(
                 val qualifiedFunc =
                     if (funcName.contains('.')) funcName else "${config.sourceClass.simpleName.asString()}.$funcName"
                 if (!funcName.contains('.')) importHandler.addImport(config.sourceClass.qualifiedName!!.asString())
-                "$qualifiedFunc(this.$sourcePropName)"
+                "$qualifiedFunc($accessPrefixCustom)"
             }
             return "$targetPropName = $mapperCall"
         }
 
-        val sourceNullable = sourcePropType.nullability == Nullability.NULLABLE
-        val accessPrefix = "this.$sourcePropName"
+        val accessPrefix =
+            if (hasRequired && sourceNullable) "this.$sourcePropName!!" else "this.$sourcePropName"
         val sourcePropClassDecl = sourcePropType.declaration as? KSClassDeclaration
 
         return when {
@@ -310,7 +323,7 @@ class AutoMapperProcessor(
 
         return sourceProps.mapNotNull { sourceProp ->
             val sourcePropName = sourceProp.simpleName.asString()
-            val mappedName = sourceProp.getMappedName()
+            val mappedName = sourceProp.getMappedName(config.targetClass)
             val targetProp = targetProps.firstOrNull { it.simpleName.asString() == mappedName }
                 ?: return@mapNotNull null
 

@@ -35,13 +35,13 @@ It includes:
 ## Add to `commonMain`
 
 ```kotlin
-implementation("io.github.the-best-is-best:automapper-annotations:2.1.2")
+implementation("io.github.the-best-is-best:automapper-annotations:2.1.3")
 ```
 
 Add KSP processor:
 
 ```kotlin
-ksp("io.github.the-best-is-best:automapper-processor:2.1.2")
+ksp("io.github.the-best-is-best:automapper-processor:2.1.3")
 ```
 
 ## To start generator
@@ -75,7 +75,9 @@ annotation class AutoMapper(
 
 ## `@DefaultValue`
 
-### Adds default value if missing
+### Adds default value if missing. Supports any type (String, Boolean, Enum, etc.) via a single
+
+`value` string.
 
 ```kotlin
 annotation class DefaultValue(
@@ -83,6 +85,28 @@ annotation class DefaultValue(
     val value: String
 )
 ```
+
+**Advanced Features:**
+The processor automatically detects and imports classes used in the `value` string if they match the
+type of the target property or other properties in the class.
+
+**Example:**
+
+```kotlin
+@AutoMapper(
+  to = UserModel::class,
+  defaultValues = [
+    DefaultValue("name", "\"John Doe\""), // String literal (needs escaped quotes)
+    DefaultValue("isActive", "true"),      // Boolean
+    DefaultValue("status", "Status.ACTIVE") // Enum (Status will be auto-imported)
+  ]
+)
+```
+
+**Generation Logic:**
+
+- If the source property is missing: `target = defaultValue`
+- If the source property exists but is nullable: `target = source ?: defaultValue`
 
 ---
 
@@ -137,6 +161,16 @@ val joinDate: String?
 
 ```kotlin
 annotation class AutoMapperAddOptIns(val value: Array<String>)
+```
+
+---
+
+## `@AutoMapperAddImport`
+
+### Adds custom imports to the generated class
+
+```kotlin
+annotation class AutoMapperAddImport(val value: Array<String>)
 ```
 
 ---

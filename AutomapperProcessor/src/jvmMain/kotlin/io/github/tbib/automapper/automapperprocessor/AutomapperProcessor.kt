@@ -101,18 +101,41 @@ class AutoMapperProcessor(
         resolver: Resolver
     ): List<String> {
         return targetProps.map { targetProp ->
-            when (val targetPropName = targetProp.simpleName.asString()) {
-                in config.ignoreKeys -> "$targetPropName = null"
-                in config.defaultValues -> {
-                    val defaultValue = config.defaultValues[targetPropName]!!
-                    importHandler.addImportsFromDefaultValue(defaultValue, config.targetClass)
-                    "$targetPropName = $defaultValue"
-                }
+            val targetPropName = targetProp.simpleName.asString()
+            val sourceProp =
+                sourceProps.find { it.getMappedName(config.targetClass) == targetPropName }
+
+            when {
+                targetPropName in config.ignoreKeys -> "$targetPropName = null"
                 else -> {
-                    val sourceProp =
-                        sourceProps.find { it.getMappedName(config.targetClass) == targetPropName }
-                        ?: throw IllegalStateException("Validated source property for '$targetPropName' not found.")
-                    mapProperty(sourceProp, targetProp, config, importHandler, resolver)
+                    if (sourceProp == null) {
+                        if (targetPropName in config.defaultValues) {
+                            val defaultValue = config.defaultValues[targetPropName]!!
+                            importHandler.addImportsFromDefaultValue(
+                                defaultValue,
+                                config.targetClass,
+                                targetPropName
+                            )
+                            "$targetPropName = $defaultValue"
+                        } else {
+                            throw IllegalStateException("Validated source property for '$targetPropName' not found.")
+                        }
+                    } else {
+                        val mapped =
+                            mapProperty(sourceProp, targetProp, config, importHandler, resolver)
+                        if (targetPropName in config.defaultValues) {
+                            val defaultValue = config.defaultValues[targetPropName]!!
+                            importHandler.addImportsFromDefaultValue(
+                                defaultValue,
+                                config.targetClass,
+                                targetPropName
+                            )
+                            val assignment = mapped.substringAfter(" = ")
+                            "$targetPropName = $assignment ?: $defaultValue"
+                        } else {
+                            mapped
+                        }
+                    }
                 }
             }
         }
@@ -231,6 +254,7 @@ class AutoMapperProcessor(
 
         val sourceNullable = sourcePropType.nullability == Nullability.NULLABLE
         val hasRequired = sourceProp.isRequiredFor(config.targetClass)
+        val hasDefaultValue = config.defaultValues.containsKey(targetPropName)
 
         if (customMapper != null) {
             val (annotationName, funcName, _) = customMapper
@@ -238,7 +262,8 @@ class AutoMapperProcessor(
             val paramIsNullable =
                 func?.parameters?.firstOrNull()?.type?.resolve()?.nullability == Nullability.NULLABLE
 
-            val useNotNullAssertion = hasRequired && sourceNullable && !paramIsNullable
+            val useNotNullAssertion =
+                hasRequired && sourceNullable && !paramIsNullable && !hasDefaultValue
             val accessPrefixCustom =
                 if (useNotNullAssertion) "this.$sourcePropName!!" else "this.$sourcePropName"
 
@@ -262,7 +287,7 @@ class AutoMapperProcessor(
         }
 
         val accessPrefix =
-            if (hasRequired && sourceNullable) "this.$sourcePropName!!" else "this.$sourcePropName"
+            if (hasRequired && sourceNullable && !hasDefaultValue) "this.$sourcePropName!!" else "this.$sourcePropName"
         val sourcePropClassDecl = sourcePropType.declaration as? KSClassDeclaration
 
         return when {

@@ -45,3 +45,9 @@ annotation class AutoMapperRequired(
 annotation class AutoMapperAddOptIns(
     val value: Array<String>
 )
+
+@Target(AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.SOURCE)
+annotation class AutoMapperAddImport(
+    val value: Array<String>
+)

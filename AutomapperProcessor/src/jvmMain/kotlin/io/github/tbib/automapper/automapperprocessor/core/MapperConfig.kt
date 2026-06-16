@@ -17,7 +17,8 @@ internal data class MapperConfig(
     val visibilityModifier: String,
     val defaultValues: Map<String, String>,
     val ignoreKeys: Set<String>,
-    val optInClasses: List<String> // Changed to hold the raw class names
+    val optInClasses: List<String>, // Changed to hold the raw class names
+    val manualImports: List<String>
 ) {
     val packageName: String = "io.github.tbib.automapper"
     val mapperName: String =
@@ -64,12 +65,12 @@ internal data class MapperConfig(
 
             val defaultValues = defaultValuesList.mapNotNull { anno ->
                 val key = anno.getArgument<String?>("key", null)
-                val value =
-                    anno.arguments.firstOrNull { it.name?.asString() == "value" }?.value?.toString()
-                if (key != null && value != null) key to value else null
+                val value = anno.getArgument<String>("value", "")
+                if (key != null) key to value else null
             }.toMap()
 
             val optInsClasses = getOptInClasses(sourceClass, autoMapperAnnotation)
+            val manualImports = getManualImports(sourceClass)
 
             return MapperConfig(
                 sourceClass = sourceClass,
@@ -79,8 +80,16 @@ internal data class MapperConfig(
                 visibilityModifier = visibility,
                 defaultValues = defaultValues,
                 ignoreKeys = ignoreKeys,
-                optInClasses = optInsClasses // Store the raw list
+                optInClasses = optInsClasses, // Store the raw list
+                manualImports = manualImports
             )
+        }
+
+        private fun getManualImports(sourceClass: KSClassDeclaration): List<String> {
+            val addImportAnnotation =
+                sourceClass.annotations.firstOrNull { it.shortName.asString() == "AutoMapperAddImport" }
+            return addImportAnnotation?.getArgument<List<String>>("value", emptyList())
+                ?: emptyList()
         }
 
         private fun getOptInClasses(
@@ -116,9 +125,11 @@ internal class ImportHandler(
         if (config.packageName != sourceClass.packageName.asString()) {
             addImport(sourceClass.qualifiedName!!.asString())
         }
-        // --- THIS IS THE CORRECTED LOGIC ---
         // Directly add the fully qualified names from the config to the imports set.
         config.optInClasses.forEach { fqn ->
+            addImport(fqn)
+        }
+        config.manualImports.forEach { fqn ->
             addImport(fqn)
         }
     }
@@ -131,9 +142,26 @@ internal class ImportHandler(
         imports.add(qualifiedName)
     }
 
-    fun addImportsFromDefaultValue(defaultValue: String, targetClass: KSClassDeclaration) {
+    fun addImportsFromDefaultValue(
+        defaultValue: String,
+        targetClass: KSClassDeclaration,
+        targetPropName: String
+    ) {
         val className = defaultValue.substringBefore("(").substringBefore(".")
         if (className.isNotBlank() && className[0].isUpperCase()) {
+            // 1. Check if it matches the type of the target property itself
+            val targetProp = targetClass.getAllProperties()
+                .firstOrNull { it.simpleName.asString() == targetPropName }
+            val targetPropType = targetProp?.type?.resolve()
+            if (targetPropType?.declaration?.simpleName?.asString() == className) {
+                val fqn = targetPropType.declaration.qualifiedName?.asString()
+                if (fqn != null) {
+                    addImport(fqn)
+                    return
+                }
+            }
+
+            // 2. Fallback to searching all properties in the target class
             val propTypeFqn = targetClass.getAllProperties()
                 .firstOrNull { it.type.resolve().declaration.simpleName.asString() == className }
                 ?.type?.resolve()?.declaration?.qualifiedName?.asString()
